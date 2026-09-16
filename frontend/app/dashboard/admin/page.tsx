@@ -229,6 +229,12 @@ export default function AdminDashboardPage() {
   const [editingLocId, setEditingLocId] = useState<string | null>(null);
   const [editingLocForm, setEditingLocForm] = useState({ name: "", address: "", details: "" });
   const [isSavingLocations, setIsSavingLocations] = useState(false);
+  // YouTube upload state
+  const [uploadingWorkshopId, setUploadingWorkshopId] = useState<string | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
+  const [uploadMessage, setUploadMessage] = useState<string>("");
   const [savedToast, setSavedToast] = useState<string | null>(null);
 
   async function handleSaveFinancialSettings() {
