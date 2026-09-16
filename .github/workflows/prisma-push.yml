@@ -1,0 +1,28 @@
+name: Deploy Prisma Schema
+on:
+  push:
+    branches:
+      - main
+jobs:
+  db-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup IPv6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y miredo
+          sudo service miredo start
+          sleep 5
+          ping6 -c 3 google.com
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Dependencies
+        run: cd backend && npm install
+      - name: Prisma DB Push
+        env:
+          DATABASE_URL: "postgresql://postgres:%40Ynumber12345%40@db.fswpminwptllwjeqzunl.supabase.co:5432/postgres"
+          DIRECT_URL: "postgresql://postgres:%40Ynumber12345%40@db.fswpminwptllwjeqzunl.supabase.co:5432/postgres"
+        run: cd backend && npx prisma db push --accept-data-loss
