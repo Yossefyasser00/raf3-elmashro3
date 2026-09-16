@@ -7,6 +7,8 @@ import { ExpressAdapter } from '@nestjs/platform-express';
 import { AppModule } from '../src/app.module';
 
 const server: Express = express();
+server.get('/health', (req, res) => res.json({ status: 'ok', timestamp: Date.now() }));
+server.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: Date.now() }));
 let isReady = false;
 
 async function bootstrap() {
