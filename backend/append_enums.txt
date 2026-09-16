@@ -1,0 +1,22 @@
+
+enum WorkshopStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PUBLISHED
+  CANCELLED
+}
+
+enum PayoutStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
+enum NegotiationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+

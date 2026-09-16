@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+.next/
+dist/
+out/
+
+# Local environment files (DO NOT COMMIT)
+.env
+.env.local
+.env.development
+.env.production
+# Keep examples (safe to commit)
+!.env.example
+
+# Vercel
+.vercel/
+
+# TypeScript
+*.tsbuildinfo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Prisma generated (committed so Vercel can use it)
+# backend/node_modules/.prisma is auto-generated

@@ -1,0 +1,19 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start backend",
+			"type": "shell",
+			"command": "cd /d c:\\Users\\LORD\\Desktop\\maaashroo333-main\\backend && npm run start:dev",
+			"isBackground": true,
+			"group": "build"
+		},
+		{
+			"label": "Start backend",
+			"type": "shell",
+			"command": "cd /d c:\\Users\\LORD\\Desktop\\maaashroo333-main\\backend; npm run start:dev",
+			"isBackground": true,
+			"group": "build"
+		}
+	]
+}

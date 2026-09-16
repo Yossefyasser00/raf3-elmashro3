@@ -1,0 +1,1010 @@
+// ============================================================
+// فك زنقة (Fok Zan2a) — Core Database Schema
+// PostgreSQL + Prisma
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------------
+
+enum RoleName {
+  STUDENT
+  TUTOR
+  ADMIN
+}
+
+enum TeachingMode {
+  ONLINE
+  IN_PERSON
+  BOTH
+}
+
+enum RequestStatus {
+  DRAFT
+  PUBLISHED
+  MATCHING
+  TUTOR_SELECTED
+  PAYMENT_PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  STUDENT_RATED
+  CANCELLED
+  DISPUTED
+}
+
+enum UrgencyLevel {
+  LOW
+  MEDIUM
+  HIGH
+  ASAP
+}
+
+enum TutorApplicationStatus {
+  PENDING
+  UNDER_REVIEW
+  CHANGES_REQUESTED
+  ACCEPTED
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum NotificationType {
+  NEW_REQUEST_MATCH
+  TUTOR_ACCEPTED
+  BOOKING_CONFIRMED
+  PAYMENT_CONFIRMED
+  SESSION_REMINDER
+  SESSION_COMPLETED
+  NEW_REVIEW
+  TUTOR_APPLICATION_STATUS
+  WORKSHOP_AVAILABLE
+  GENERIC
+}
+
+enum WorkshopType {
+  FREE
+  PAID
+}
+
+// ------------------------------------------------------------
+// IDENTITY / ACCOUNTS
+// A user can hold multiple roles (Student + Tutor), so roles
+// are modeled as a join table, not a single enum column on User.
+// ------------------------------------------------------------
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  phone           String?   @unique
+  passwordHash    String
+  fullName        String
+  avatarUrl       String?
+  isActive        Boolean   @default(true)
+  isEmailVerified Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  roles                  UserRole[]
+  studentProfile         StudentProfile?
+  tutorProfile           TutorProfile?
+  tutorApplications      TutorApplication[]
+  refreshTokens          RefreshToken[]
+  passwordResetTokens    PasswordResetToken[]
+  notifications          Notification[]
+  pointTransactions      PointTransaction[]
+  sentMessages           Message[]            @relation("MessagesSent")
+  conversationsAsStudent Conversation[]       @relation("ConversationStudent")
+  conversationsAsTutor   Conversation[]       @relation("ConversationTutor")
+  reviewsWritten         Review[]             @relation("ReviewAuthor")
+  requestsCreated        Request[]            @relation("RequestStudent")
+  paymentsAsPayer        Payment[]            @relation("PaymentUser")
+  workshopEnrollments    WorkshopEnrollment[]
+  quizAttempts           QuizAttempt[]
+  aiNotes                AiNote[]
+  aiQuizzes              AiGeneratedQuiz[]
+  aiQuizAttempts         AiQuizAttempt[]
+  weakPoints             WeakPoint[]
+  studyRoadmaps          StudyRoadmap[]
+  aiExams                AiExam[]
+  aiExamAttempts         AiExamAttempt[]
+  aiVoiceSessions        AiVoiceSession[]
+  teacherAiResources     TeacherAiResource[]
+  workshopsTaught        Workshop[]           @relation("WorkshopTutor")
+  grantedFreeAccess      WorkshopFreeAccess[] @relation("GrantedFreeAccess")
+  payoutRequests         PayoutRequest[]      @relation("TutorPayouts")
+  negotiationsAsStudent  RequestNegotiation[] @relation("NegotiationStudent")
+  negotiationsAsTutor    RequestNegotiation[] @relation("NegotiationTutor")
+  WorkshopFreeAccess     WorkshopFreeAccess[]
+
+  @@index([email])
+  @@index([phone])
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  role      RoleName
+  grantedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String   @unique   // one active token per user at a time
+  codeHash  String             // hashed OTP — never stored in plaintext
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ------------------------------------------------------------
+// ACADEMIC TAXONOMY (scales to multiple universities)
+// ------------------------------------------------------------
+
+model University {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  city      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  faculties       Faculty[]
+  studentProfiles StudentProfile[]
+  tutorProfiles   TutorProfile[]
+  requests        Request[]
+}
+
+model Faculty {
+  id           String @id @default(uuid())
+  universityId String
+  name         String
+
+  university      University       @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  departments     Department[]
+  subjects        Subject[]
+  studentProfiles StudentProfile[]
+  tutorProfiles   TutorProfile[]
+  requests        Request[]
+
+  @@unique([universityId, name])
+}
+
+model Department {
+  id        String @id @default(uuid())
+  facultyId String
+  name      String
+
+  faculty         Faculty          @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  studentProfiles StudentProfile[]
+  tutorProfiles   TutorProfile[]
+
+  @@unique([facultyId, name])
+}
+
+model Subject {
+  id        String  @id @default(uuid())
+  name      String
+  facultyId String?
+  isActive  Boolean @default(true)
+
+  faculty       Faculty?       @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  topics        Topic[]
+  requests      Request[]
+  tutorSubjects TutorSubject[]
+
+  @@index([facultyId])
+}
+
+model Topic {
+  id        String @id @default(uuid())
+  subjectId String
+  name      String
+
+  subject     Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  requests    Request[]
+  tutorTopics TutorTopic[]
+
+  @@unique([subjectId, name])
+}
+
+// ------------------------------------------------------------
+// PROFILES
+// ------------------------------------------------------------
+
+model StudentProfile {
+  id                  String  @id @default(uuid())
+  userId              String  @unique
+  universityId        String?
+  facultyId           String?
+  departmentId        String?
+  academicYear       Int?
+  collegeCardFileName String?
+  gradeLevel          String?
+  pointsBalance       Int     @default(0)
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  university University? @relation(fields: [universityId], references: [id])
+  faculty    Faculty?    @relation(fields: [facultyId], references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
+}
+
+model TutorProfile {
+  id           String       @id @default(uuid())
+  userId       String       @unique
+  universityId String?
+  facultyId    String?
+  departmentId String?
+  bio          String?
+  teachingMode TeachingMode @default(BOTH)
+  priceMinEGP  Int?
+  priceMaxEGP  Int?
+  meetingUrl   String?      // رابط Google Meet الخاص بالمدرس
+  isVerified   Boolean      @default(false)
+  verifiedAt   DateTime?
+
+  // Cached/derived ranking inputs — recalculated by a scheduled job,
+  // never trusted as the sole ranking signal (see TutorRankingService).
+  ratingAvg              Float @default(0)
+  completedSessionsCount Int   @default(0)
+  studentsHelpedCount    Int   @default(0)
+  responseRatePct        Float @default(0)
+  successRatePct         Float @default(0)
+  rankingScore           Float @default(0)
+  isFeaturedOnHome       Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  university University? @relation(fields: [universityId], references: [id])
+  faculty    Faculty?    @relation(fields: [facultyId], references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
+
+  subjects        TutorSubject[]
+  topics          TutorTopic[]
+  availabilities  Availability[]
+  bookings        Booking[]
+  reviewsReceived Review[]       @relation("ReviewTutor")
+  requestMatches  RequestMatch[]
+
+  @@index([isVerified])
+  @@index([rankingScore])
+}
+
+model TutorSubject {
+  id        String @id @default(uuid())
+  tutorId   String
+  subjectId String
+
+  tutor   TutorProfile @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  subject Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([tutorId, subjectId])
+}
+
+model TutorTopic {
+  id      String @id @default(uuid())
+  tutorId String
+  topicId String
+
+  tutor TutorProfile @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  topic Topic        @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([tutorId, topicId])
+}
+
+// ------------------------------------------------------------
+// TUTOR APPLICATION / HIRING
+// ------------------------------------------------------------
+
+model TutorApplication {
+  id                String                 @id @default(uuid())
+  userId            String
+  status            TutorApplicationStatus @default(PENDING)
+  universityName    String
+  facultyName       String
+  departmentName    String?
+  experienceSummary String?
+  introVideoUrl     String?
+  sampleVideoUrl    String?
+  preferredMode     TeachingMode           @default(BOTH)
+  adminNotes        String?
+  reviewedByAdminId String?
+  reviewedAt        DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+// ------------------------------------------------------------
+// REQUESTS — the core marketplace object, modeled as a
+// state machine. Transitions are enforced in RequestStateMachine
+// service, never directly by controllers or the frontend.
+// ------------------------------------------------------------
+
+model Request {
+  id           String        @id @default(uuid())
+  studentId    String
+  universityId String?
+  facultyId    String?
+  academicYear Int?
+  subjectId    String?
+  topicId      String?
+  description  String
+  teachingMode TeachingMode
+  preferredAt  DateTime?
+  budgetEGP    Int?
+  urgency      UrgencyLevel  @default(MEDIUM)
+  status       RequestStatus @default(DRAFT)
+
+  paymentSenderAccount String?  // رقم المحفظة أو IPA الذي حوّل منه الطالب
+  paymentMethodUsed    String?  // "vodafone" أو "instapay"
+
+  selectedTutorId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student    User        @relation("RequestStudent", fields: [studentId], references: [id])
+  university University? @relation(fields: [universityId], references: [id])
+  faculty    Faculty?    @relation(fields: [facultyId], references: [id])
+  subject    Subject?    @relation(fields: [subjectId], references: [id])
+  topic      Topic?      @relation(fields: [topicId], references: [id])
+
+  attachments   RequestAttachment[]
+  matches       RequestMatch[]
+  booking       Booking?
+  statusHistory RequestStatusHistory[]
+  conversation  Conversation?
+  negotiations  RequestNegotiation[]
+
+  @@index([status])
+  @@index([studentId])
+  @@index([subjectId, topicId])
+}
+
+// Immutable audit trail of every state transition — required for
+// disputes and for the backend to prove a transition was valid.
+model RequestStatusHistory {
+  id              String         @id @default(uuid())
+  requestId       String
+  fromStatus      RequestStatus?
+  toStatus        RequestStatus
+  changedByUserId String?
+  reason          String?
+  createdAt       DateTime       @default(now())
+
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+}
+
+model RequestAttachment {
+  id        String   @id @default(uuid())
+  requestId String
+  fileUrl   String
+  fileType  String?
+  createdAt DateTime @default(now())
+
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
+
+// The 3–5 candidate tutors surfaced to a student for a request —
+// this is the output of the matching/ranking engine, persisted so
+// the "why these tutors" decision is auditable and cacheable.
+model RequestMatch {
+  id        String   @id @default(uuid())
+  requestId String
+  tutorId   String
+  score     Float
+  rank      Int
+  createdAt DateTime @default(now())
+
+  request Request      @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  tutor   TutorProfile @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, tutorId])
+  @@index([requestId, rank])
+}
+
+// ------------------------------------------------------------
+// AVAILABILITY / BOOKING
+// Double-booking is prevented with a DB-level unique constraint
+// on (tutorId, startsAt) combined with an application-level
+// overlap check inside a transaction.
+// ------------------------------------------------------------
+
+model Availability {
+  id        String  @id @default(uuid())
+  tutorId   String
+  dayOfWeek Int // 0=Sunday .. 6=Saturday
+  startTime String // "HH:mm"
+  endTime   String // "HH:mm"
+  isActive  Boolean @default(true)
+
+  tutor TutorProfile @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+
+  @@index([tutorId, dayOfWeek])
+}
+
+model Booking {
+  id           String       @id @default(uuid())
+  requestId    String       @unique
+  tutorId      String
+  teachingMode TeachingMode
+  startsAt     DateTime
+  endsAt       DateTime
+  priceEGP     Int
+  locationNote String? // predefined/admin-approved meeting point for IN_PERSON
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  request      Request       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  tutor        TutorProfile  @relation(fields: [tutorId], references: [id])
+  payment      Payment?
+  review       Review?
+  quizAttempts QuizAttempt[]
+
+  @@unique([tutorId, startsAt])
+  @@index([tutorId, startsAt])
+}
+
+// ------------------------------------------------------------
+// PAYMENTS — provider-agnostic abstraction.
+// PaymentProvider enum + provider-specific metadata (JSON) so a
+// new Egyptian PSP (Paymob, Fawry, etc.) can be added later
+// without a schema migration for core fields.
+// ------------------------------------------------------------
+
+model Payment {
+  id               String        @id @default(uuid())
+  bookingId        String        @unique
+  userId           String
+  provider         String // e.g. "paymob", "fawry", "manual"
+  amountEGP        Int
+  platformFeeEGP   Int
+  tutorEarningsEGP Int
+  status           PaymentStatus @default(PENDING)
+  transactionRef   String?       @unique
+  providerMetadata Json?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  user    User    @relation("PaymentUser", fields: [userId], references: [id])
+
+  @@index([status])
+}
+
+// ------------------------------------------------------------
+// REVIEWS / REPUTATION
+// ------------------------------------------------------------
+
+model Review {
+  id                  String   @id @default(uuid())
+  bookingId           String   @unique
+  authorId            String
+  tutorId             String
+  overallRating       Int // 1-5
+  explanationRating   Int // 1-5
+  communicationRating Int // 1-5
+  helpfulnessRating   Int // 1-5
+  comment             String?
+  createdAt           DateTime @default(now())
+
+  booking Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  author  User         @relation("ReviewAuthor", fields: [authorId], references: [id])
+  tutor   TutorProfile @relation("ReviewTutor", fields: [tutorId], references: [id])
+
+  @@index([tutorId])
+}
+
+// ------------------------------------------------------------
+// POINTS / REWARDS — rules are data, not code.
+// ------------------------------------------------------------
+
+model PointTransaction {
+  id        String   @id @default(uuid())
+  userId    String
+  points    Int // positive = earned, negative = spent
+  reason    String // e.g. "REQUEST_COMPLETED", "REVIEW_SUBMITTED"
+  refType   String? // e.g. "Request", "Review", "Workshop"
+  refId     String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Admin-configurable rule: "action X earns Y points" /
+// "Z points unlocks reward W". No rule is hard-coded in application logic.
+model Reward {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  pointsCost  Int
+  rewardType  String // e.g. "FREE_WORKSHOP", "DISCOUNT", "FREE_QUIZ"
+  metadata    Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model PointRule {
+  id        String  @id @default(uuid())
+  actionKey String  @unique // e.g. "REQUEST_COMPLETED", "TUTOR_RATED"
+  points    Int
+  isActive  Boolean @default(true)
+}
+
+// ------------------------------------------------------------
+// WORKSHOPS
+// ------------------------------------------------------------
+
+model Workshop {
+  id          String       @id @default(uuid())
+  title       String
+  description String?
+  type        WorkshopType
+  priceEGP    Int?
+  pointsCost  Int?
+  subjectId   String?
+  startsAt    DateTime
+  endsAt      DateTime
+  capacity    Int?
+  createdAt   DateTime     @default(now())
+
+  tutorId          String?
+  status           WorkshopStatus @default(PENDING)
+  isFeaturedOnHome Boolean        @default(false)
+  updatedAt        DateTime       @updatedAt
+
+  // YouTube integration
+  youtubeVideoId String? // YouTube private video ID
+  thumbnailUrl   String? // YouTube thumbnail URL (set after upload)
+
+  tutor        User?                @relation("WorkshopTutor", fields: [tutorId], references: [id])
+  enrollments  WorkshopEnrollment[]
+  freeAccesses WorkshopFreeAccess[]
+}
+
+model WorkshopEnrollment {
+  id             String   @id @default(uuid())
+  workshopId     String
+  userId         String
+  paidWithPoints Boolean  @default(false)
+  status         String   @default("PENDING")
+  createdAt      DateTime @default(now())
+
+  workshop Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workshopId, userId])
+}
+
+// ------------------------------------------------------------
+// POST-SESSION QUIZ
+// ------------------------------------------------------------
+
+model Quiz {
+  id            String   @id @default(uuid())
+  topicId       String?
+  title         String
+  isAiGenerated Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+}
+
+model QuizQuestion {
+  id              String @id @default(uuid())
+  quizId          String
+  prompt          String
+  choices         Json // [{ id, text }]
+  correctChoiceId String
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+}
+
+model QuizAttempt {
+  id            String   @id @default(uuid())
+  quizId        String
+  bookingId     String
+  userId        String
+  scorePct      Float
+  attemptNumber Int      @default(1)
+  createdAt     DateTime @default(now())
+
+  quiz    Quiz    @relation(fields: [quizId], references: [id])
+  booking Booking @relation(fields: [bookingId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([bookingId])
+}
+
+// ------------------------------------------------------------
+// NOTIFICATIONS
+// ------------------------------------------------------------
+
+model Notification {
+  id        String              @id @default(uuid())
+  userId    String
+  type      NotificationType
+  channel   NotificationChannel @default(IN_APP)
+  title     String
+  body      String
+  isRead    Boolean             @default(false)
+  metadata  Json?
+  createdAt DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}
+
+// ------------------------------------------------------------
+// CHAT (student <-> tutor, after a request is matched)
+// ------------------------------------------------------------
+
+model Conversation {
+  id        String   @id @default(uuid())
+  requestId String   @unique
+  studentId String
+  tutorId   String
+  createdAt DateTime @default(now())
+
+  request  Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  student  User      @relation("ConversationStudent", fields: [studentId], references: [id])
+  tutor    User      @relation("ConversationTutor", fields: [tutorId], references: [id])
+  messages Message[]
+}
+
+model Message {
+  id             String    @id @default(uuid())
+  conversationId String
+  senderId       String
+  body           String
+  createdAt      DateTime  @default(now())
+  readAt         DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("MessagesSent", fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+}
+
+// ------------------------------------------------------------
+// PLATFORM SETTINGS — commission %, etc. Configurable, not
+// hard-coded. Read through a cached SettingsService.
+// ------------------------------------------------------------
+
+model PlatformSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique // e.g. "COMMISSION_PERCENT", "IN_PERSON_SURCHARGE_PCT"
+  value     String
+  valueType String   @default("string") // "number" | "string" | "boolean" | "json"
+  updatedAt DateTime @updatedAt
+}
+
+// ------------------------------------------------------------
+// 1. AI NOTES / SMART SUMMARIES
+// ------------------------------------------------------------
+model AiNote {
+  id              String   @id @default(uuid())
+  userId          String
+  title           String
+  subject         String?
+  topic           String?
+  sourceContent   String?
+  shortSummary    String
+  detailedSummary String
+  keyPoints       Json // string[]
+  definitions     Json // [{ term, definition }]
+  formulas        Json // [{ title, formula, explanation }]
+  concepts        Json // [{ title, explanation }]
+  rememberList    Json // string[]
+  tags            Json? // string[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ------------------------------------------------------------
+// 2. AI QUIZZES & ATTEMPTS
+// ------------------------------------------------------------
+model AiGeneratedQuiz {
+  id                   String   @id @default(uuid())
+  userId               String
+  title                String
+  subject              String
+  topic                String?
+  difficulty           String   @default("MEDIUM") // EASY, MEDIUM, HARD, MIXED
+  sourceType           String   @default("CUSTOM") // NOTE, LESSON, PDF, TOPIC, TEACHER_PUBLISHED
+  sourceId             String?
+  questions            Json // [{ id, prompt, type, choices, correctChoiceId, explanation, difficulty, topic }]
+  isPublishedByTeacher Boolean  @default(false)
+  teacherId            String?
+  createdAt            DateTime @default(now())
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempts AiQuizAttempt[]
+
+  @@index([userId])
+}
+
+model AiQuizAttempt {
+  id                   String   @id @default(uuid())
+  quizId               String
+  userId               String
+  score                Int
+  totalQuestions       Int
+  percentage           Float
+  answers              Json // Record<questionId, selectedAnswer>
+  weakTopicsIdentified Json // string[]
+  timeSpentSeconds     Int      @default(0)
+  createdAt            DateTime @default(now())
+
+  quiz AiGeneratedQuiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([quizId])
+}
+
+// ------------------------------------------------------------
+// 3. AI WEAK POINT DETECTOR
+// ------------------------------------------------------------
+model WeakPoint {
+  id                   String   @id @default(uuid())
+  userId               String
+  subject              String
+  topic                String
+  masteryScore         Float // 0 to 100
+  struggleReason       String
+  mistakeCount         Int      @default(1)
+  recommendedLessons   Json // string[]
+  recommendedNotes     Json // string[]
+  recommendedQuizzes   Json // string[]
+  recommendedQuestions Json // string[]
+  status               String   @default("ACTIVE") // ACTIVE, IMPROVING, RESOLVED
+  lastEvaluatedAt      DateTime @default(now())
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, subject])
+}
+
+// ------------------------------------------------------------
+// 4. AI PERSONAL STUDY ROADMAP
+// ------------------------------------------------------------
+model StudyRoadmap {
+  id                String   @id @default(uuid())
+  userId            String
+  goal              String
+  subject           String
+  currentLevel      String
+  dailyStudyMinutes Int      @default(60)
+  targetDate        DateTime
+  progressPct       Float    @default(0)
+  currentStreakDays Int      @default(1)
+  tasks             Json // [{ id, day, week, title, type, topic, durationMinutes, isCompleted, completedAt }]
+  adaptiveNotes     String?
+  status            String   @default("ACTIVE") // ACTIVE, COMPLETED, ARCHIVED
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ------------------------------------------------------------
+// 5. AI EXAM SIMULATOR
+// ------------------------------------------------------------
+model AiExam {
+  id              String   @id @default(uuid())
+  userId          String
+  title           String
+  subject         String
+  topics          Json // string[]
+  difficulty      String   @default("MEDIUM")
+  durationMinutes Int      @default(60)
+  questions       Json // [{ id, prompt, type, choices, correctChoiceId, explanation, topic, marks }]
+  isPublished     Boolean  @default(false)
+  teacherId       String?
+  createdAt       DateTime @default(now())
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempts AiExamAttempt[]
+
+  @@index([userId])
+}
+
+model AiExamAttempt {
+  id                   String   @id @default(uuid())
+  examId               String
+  userId               String
+  score                Float
+  maxScore             Float
+  percentage           Float
+  timeSpentSeconds     Int
+  answers              Json // Record<questionId, selectedAnswer>
+  topicPerformance     Json // [{ topic, correct, total, percentage }]
+  weakAreas            Json // string[]
+  aiFeedback           String
+  recommendedNextSteps Json // string[]
+  createdAt            DateTime @default(now())
+
+  exam AiExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  user User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([examId])
+}
+
+// ------------------------------------------------------------
+// 6. VOICE AI TUTOR SESSIONS
+// ------------------------------------------------------------
+model AiVoiceSession {
+  id        String   @id @default(uuid())
+  userId    String
+  topic     String?
+  summary   String?
+  messages  Json // [{ role, content, timestamp }]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ------------------------------------------------------------
+// 7. TEACHER AI ASSISTANT RESOURCES
+// ------------------------------------------------------------
+model TeacherAiResource {
+  id           String   @id @default(uuid())
+  teacherId    String
+  resourceType String // QUIZ, EXAM, HOMEWORK, LESSON_SUMMARY, QUESTION_BANK, EXPLANATION, SIMPLIFIED_LESSON
+  title        String
+  subject      String
+  topic        String
+  gradeLevel   String?
+  difficulty   String?
+  content      Json // structured generated content
+  isPublished  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  teacher User @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId, resourceType])
+}
+
+enum WorkshopStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PUBLISHED
+  CANCELLED
+}
+
+enum PayoutStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
+enum NegotiationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+// ------------------------------------------------------------
+// NEW FEATURES
+// ------------------------------------------------------------
+
+model WorkshopFreeAccess {
+  id          String   @id @default(uuid())
+  workshopId  String
+  studentId   String
+  grantedById String
+  createdAt   DateTime @default(now())
+
+  workshop  Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  grantedBy User     @relation("GrantedFreeAccess", fields: [grantedById], references: [id], onDelete: Cascade)
+
+  @@unique([workshopId, studentId])
+}
+
+model PayoutRequest {
+  id             String       @id @default(uuid())
+  tutorId        String
+  amountEGP      Int
+  status         PayoutStatus @default(PENDING)
+  paymentMethod  String
+  accountDetails String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  tutor User @relation("TutorPayouts", fields: [tutorId], references: [id], onDelete: Cascade)
+
+  @@index([tutorId])
+  @@index([status])
+}
+
+model RequestNegotiation {
+  id                String            @id @default(uuid())
+  requestId         String
+  tutorId           String
+  studentId         String
+  proposedAmountEGP Int
+  proposedTime      String
+  status            NegotiationStatus @default(PENDING)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  tutor   User    @relation("NegotiationTutor", fields: [tutorId], references: [id], onDelete: Cascade)
+  student User    @relation("NegotiationStudent", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([tutorId])
+  @@index([studentId])
+}
