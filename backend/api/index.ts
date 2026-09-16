@@ -1,4 +1,4 @@
-﻿import { NestFactory } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { json, urlencoded, Express } from 'express';
 import express from 'express';
@@ -37,9 +37,18 @@ async function createNestServer(expressInstance: Express) {
 }
 
 export default async function handler(req: any, res: any) {
-  if (!isReady) {
-    await createNestServer(server);
-    isReady = true;
+  try {
+    if (!isReady) {
+      await createNestServer(server);
+      isReady = true;
+    }
+    server(req, res);
+  } catch (err: any) {
+    console.error('Serverless Handler Error:', err);
+    res.status(500).json({
+      statusCode: 500,
+      message: 'Serverless initialization error',
+      error: err?.message || String(err),
+    });
   }
-  server(req, res);
 }
