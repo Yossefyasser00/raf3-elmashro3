@@ -109,8 +109,12 @@ export class RequestsController {
 
   @Roles('TUTOR')
   @Patch(':id/start')
-  startSession(@Req() req: any, @Param('id') id: string) {
-    return this.requestsService.startSession(id, req.user.id);
+  startSession(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body('meetingUrl') meetingUrl?: string,
+  ) {
+    return this.requestsService.startSession(id, req.user.id, meetingUrl);
   }
 
   @Roles('TUTOR', 'ADMIN')

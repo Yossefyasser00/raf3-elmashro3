@@ -5,16 +5,16 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Video,
-  VideoOff,
-  Mic,
-  MicOff,
   PhoneOff,
-  Share2,
-  MessageSquare,
-  Sparkles,
-  Send,
+  Copy,
+  ExternalLink,
   Clock,
   ShieldCheck,
+  CheckCircle2,
+  Sparkles,
+  MessageSquare,
+  FileText,
+  Send,
 } from "lucide-react";
 
 export default function RoomPage() {
@@ -22,14 +22,11 @@ export default function RoomPage() {
   const router = useRouter();
   const roomId = params?.id as string;
 
-  const [micOn, setMicOn] = useState(true);
-  const [videoOn, setVideoOn] = useState(true);
-  const [screenSharing, setScreenSharing] = useState(false);
   const [activeSideTab, setActiveSideTab] = useState<"chat" | "notes">("chat");
   const [messages, setMessages] = useState<Array<{ sender: string; text: string; time: string; isMe?: boolean }>>([
     {
       sender: "النظام الذكي",
-      text: "مرحباً بكم في القاعة الافتراضية لـ فزعة. الجلسة مشفرة ومؤمنة بالكامل لحفظ جودة الشرح والتفاعل.",
+      text: "مرحباً بكم في قاعة فك زنقة ومحاضرة Google Meet المباشرة. الجلسة مؤمنة بالكامل لحفظ جودة الشرح والتفاعل.",
       time: "الآن",
     },
   ]);
@@ -39,6 +36,7 @@ export default function RoomPage() {
   const [sessionDetails, setSessionDetails] = useState<any>(null);
   const [userName, setUserName] = useState("المستخدم");
   const [userRole, setUserRole] = useState<"STUDENT" | "TUTOR">("STUDENT");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -84,6 +82,26 @@ export default function RoomPage() {
     return `${m}:${s}`;
   };
 
+  const getMeetUrl = () => {
+    return (
+      sessionDetails?.booking?.tutor?.meetingUrl ||
+      sessionDetails?.selectedTutor?.meetingUrl ||
+      "https://meet.google.com/new"
+    );
+  };
+
+  const handleCopyLink = () => {
+    const url = getMeetUrl();
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handleJoinMeet = () => {
+    const url = getMeetUrl();
+    window.open(url, "_blank");
+  };
+
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputMsg.trim()) return;
@@ -100,7 +118,7 @@ export default function RoomPage() {
   };
 
   const handleLeave = () => {
-    if (confirm("هل أنت متأكد من مغادرة القاعة الافتراضية؟")) {
+    if (confirm("هل أنت متأكد من مغادرة القاعة؟")) {
       if (userRole === "TUTOR") {
         router.push("/dashboard/tutor");
       } else {
@@ -109,25 +127,29 @@ export default function RoomPage() {
     }
   };
 
+  const meetUrl = getMeetUrl();
+  const tutorName = sessionDetails?.booking?.tutor?.user?.fullName || "المدرس المعتمد";
+  const studentName = sessionDetails?.student?.fullName || "الطالب";
+
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#0F172A] text-white font-sans" dir="rtl">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#0B132B] text-white font-sans" dir="rtl">
       {/* Header bar */}
-      <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-900/90 px-6 backdrop-blur">
+      <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-900/95 px-6 backdrop-blur">
         <div className="flex items-center gap-4">
           <Link
             href={userRole === "TUTOR" ? "/dashboard/tutor" : "/dashboard/student"}
             className="flex items-center gap-2 text-emerald-400 font-black text-xl tracking-wide hover:opacity-90"
           >
             <span className="text-2xl">⚡</span>
-            <span>فزعة كلاس</span>
+            <span>فك زنقة كلاس</span>
           </Link>
 
           <div className="hidden sm:flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800/80 px-3 py-1 text-xs text-slate-300">
             <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
             </span>
-            <span className="font-bold">بث مباشر الآن</span>
+            <span className="font-bold">المحاضرة نشطة عبر Google Meet</span>
             <span className="text-slate-500">|</span>
             <Clock className="h-3.5 w-3.5 text-slate-400" />
             <span className="font-mono font-bold text-emerald-400">{formatTime(elapsedSeconds)}</span>
@@ -161,109 +183,76 @@ export default function RoomPage() {
 
       {/* Main content body */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Stage Video Area */}
-        <main className="relative flex flex-1 flex-col items-center justify-center p-4">
-          <div className="relative flex h-full w-full max-w-5xl flex-col items-center justify-center overflow-hidden rounded-3xl border border-slate-800 bg-slate-950/80 shadow-2xl">
-            {videoOn ? (
-              <div className="relative flex h-full w-full items-center justify-center bg-gradient-to-b from-slate-900 via-slate-950 to-black">
-                <div className="flex flex-col items-center justify-center text-center p-6 space-y-4">
-                  <div className="relative flex h-32 w-32 items-center justify-center rounded-full bg-gradient-to-tr from-emerald-500/20 to-teal-400/30 border-2 border-emerald-500/40 shadow-inner">
-                    <span className="text-5xl font-black text-emerald-300">
-                      {userRole === "TUTOR" ? "🎓" : "👨‍🏫"}
-                    </span>
-                    <span className="absolute bottom-1 right-1 h-5 w-5 rounded-full bg-emerald-500 border-2 border-slate-900 flex items-center justify-center">
-                      <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
-                    </span>
-                  </div>
+        {/* Stage Area */}
+        <main className="relative flex flex-1 flex-col items-center justify-center p-6 bg-gradient-to-b from-[#0B132B] via-[#1C2541] to-[#0B132B]">
+          <div className="relative flex h-full w-full max-w-4xl flex-col items-center justify-center overflow-hidden rounded-3xl border border-slate-700/60 bg-slate-900/90 p-8 shadow-2xl backdrop-blur">
+            {/* Top Badge */}
+            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-4 py-1.5 text-xs text-emerald-400 font-bold mb-6">
+              <Sparkles className="h-4 w-4" />
+              <span>قاعة التدريس المباشر عبر Google Meet HD</span>
+            </div>
 
-                  <div>
-                    <h2 className="text-xl font-black text-white">
-                      {userRole === "TUTOR" ? "قاعة المحاضرة التدريسية المباشرة" : "أنت متصل مباشرة في القاعة مع المدرس"}
-                    </h2>
-                    <p className="mt-1 text-xs text-slate-400 max-w-md">
-                      تم فتح الاتصال بنجاح. الكاميرا والمايكروفون يعملان. يمكنك مشاركة الشاشة أو كتابة الملاحظات المشتركة.
-                    </p>
-                  </div>
+            {/* Meet Big Card */}
+            <div className="flex flex-col items-center text-center max-w-xl space-y-6">
+              <div className="relative flex h-28 w-28 items-center justify-center rounded-3xl bg-gradient-to-tr from-emerald-500 to-teal-400 shadow-xl shadow-emerald-500/20">
+                <Video className="h-14 w-14 text-white" />
+                <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-75"></span>
+                  <span className="relative inline-flex h-4 w-4 rounded-full bg-white"></span>
+                </span>
+              </div>
 
-                  <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-4 py-1.5 text-xs text-emerald-400 font-bold">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    <span>جودة الصوت والفيديو فائقة الدقة HD</span>
-                  </div>
-                </div>
-
-                {/* Self preview PIP */}
-                <div className="absolute bottom-4 left-4 h-36 w-52 overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-xl flex flex-col justify-between p-2">
-                  <div className="flex items-center justify-between text-[10px] text-slate-300">
-                    <span className="font-bold">{userName} (أنت)</span>
-                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  </div>
-                  <div className="flex flex-1 items-center justify-center text-slate-400 text-sm">
-                    {micOn ? <Mic className="h-4 w-4 text-emerald-400 mr-1" /> : <MicOff className="h-4 w-4 text-red-400 mr-1" />}
-                    <span>معاينة الكاميرا</span>
-                  </div>
-                  <span className="text-[9px] text-slate-500 text-left">متصل الآن</span>
+              <div>
+                <h1 className="text-3xl font-black text-white">
+                  {sessionDetails?.subject?.name || "المحاضرة المباشرة"}
+                </h1>
+                <p className="mt-2 text-sm text-slate-300">
+                  {sessionDetails?.topic?.name ? `موضوع: ${sessionDetails.topic.name}` : "جلسة تدريسية تفاعلية خاصة"}
+                </p>
+                <div className="mt-3 flex items-center justify-center gap-4 text-xs text-slate-400 font-semibold">
+                  <span>👨‍🏫 المدرس: <strong>{tutorName}</strong></span>
+                  <span>•</span>
+                  <span>🎓 الطالب: <strong>{studentName}</strong></span>
                 </div>
               </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center text-slate-500 space-y-3">
-                <VideoOff className="h-16 w-16 text-slate-600" />
-                <p className="text-sm font-bold text-slate-400">الكاميرا مغلقة حالياً</p>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full justify-center pt-2">
                 <button
-                  onClick={() => setVideoOn(true)}
-                  className="rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-emerald-500"
+                  onClick={handleJoinMeet}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 rounded-2xl bg-emerald-500 px-8 py-4 text-base font-black text-slate-950 hover:bg-emerald-400 transition transform active:scale-95 shadow-xl shadow-emerald-500/30"
                 >
-                  تشغيل الكاميرا
+                  <Video className="h-5 w-5" />
+                  <span>انضمام إلى Google Meet الآن 🚀</span>
+                  <ExternalLink className="h-4 w-4 opacity-70" />
+                </button>
+
+                <button
+                  onClick={handleCopyLink}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-800/90 px-6 py-4 text-xs font-bold text-slate-200 hover:bg-slate-700 transition"
+                >
+                  {copied ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                      <span className="text-emerald-400">تم نسخ الرابط!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4" />
+                      <span>نسخ رابط المحاضرة</span>
+                    </>
+                  )}
                 </button>
               </div>
-            )}
 
-            {/* Bottom Controls Bar */}
-            <div className="absolute bottom-6 flex items-center gap-3 rounded-full border border-slate-700/80 bg-slate-900/90 px-6 py-3 shadow-2xl backdrop-blur">
-              <button
-                onClick={() => setMicOn(!micOn)}
-                className={`flex h-12 w-12 items-center justify-center rounded-full transition ${
-                  micOn ? "bg-slate-800 text-white hover:bg-slate-700" : "bg-red-500 text-white hover:bg-red-600"
-                }`}
-                title={micOn ? "كتم الصوت" : "تشغيل المايكروفون"}
-              >
-                {micOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
-              </button>
+              {/* URL Display Box */}
+              <div className="w-full rounded-2xl border border-slate-800 bg-slate-950/60 p-3.5 text-xs font-mono text-emerald-400/90 text-center select-all break-all">
+                {meetUrl}
+              </div>
 
-              <button
-                onClick={() => setVideoOn(!videoOn)}
-                className={`flex h-12 w-12 items-center justify-center rounded-full transition ${
-                  videoOn ? "bg-slate-800 text-white hover:bg-slate-700" : "bg-red-500 text-white hover:bg-red-600"
-                }`}
-                title={videoOn ? "إيقاف الكاميرا" : "تشغيل الكاميرا"}
-              >
-                {videoOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
-              </button>
-
-              <button
-                onClick={() => setScreenSharing(!screenSharing)}
-                className={`flex h-12 w-12 items-center justify-center rounded-full transition ${
-                  screenSharing ? "bg-emerald-500 text-white" : "bg-slate-800 text-white hover:bg-slate-700"
-                }`}
-                title={screenSharing ? "إيقاف مشاركة الشاشة" : "مشاركة الشاشة"}
-              >
-                <Share2 className="h-5 w-5" />
-              </button>
-
-              <button
-                onClick={() => setActiveSideTab(activeSideTab === "chat" ? "notes" : "chat")}
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-800 text-white hover:bg-slate-700 transition"
-                title="الدردشة والملاحظات"
-              >
-                <MessageSquare className="h-5 w-5" />
-              </button>
-
-              <button
-                onClick={handleLeave}
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-700 transition shadow-lg shadow-red-600/30"
-                title="إنهاء المكالمة"
-              >
-                <PhoneOff className="h-5 w-5" />
-              </button>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                💡 يمكنك فتح الكاميرا والمايكروفون ومشاركة شاشة العرض أو السبورة البيضاء داخل Google Meet بسلاسة تامة.
+              </p>
             </div>
           </div>
         </main>
@@ -273,23 +262,25 @@ export default function RoomPage() {
           <div className="flex border-b border-slate-800 text-xs font-bold">
             <button
               onClick={() => setActiveSideTab("chat")}
-              className={`flex-1 py-3 text-center transition ${
+              className={`flex-1 py-3 text-center transition flex items-center justify-center gap-1.5 ${
                 activeSideTab === "chat"
                   ? "border-b-2 border-emerald-400 text-emerald-400 bg-slate-800/50"
                   : "text-slate-400 hover:text-white"
               }`}
             >
-              الدردشة الفورية 💬
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span>الدردشة السريعة</span>
             </button>
             <button
               onClick={() => setActiveSideTab("notes")}
-              className={`flex-1 py-3 text-center transition ${
+              className={`flex-1 py-3 text-center transition flex items-center justify-center gap-1.5 ${
                 activeSideTab === "notes"
                   ? "border-b-2 border-emerald-400 text-emerald-400 bg-slate-800/50"
                   : "text-slate-400 hover:text-white"
               }`}
             >
-              السبورة والملاحظات 📝
+              <FileText className="h-3.5 w-3.5" />
+              <span>الملاحظات المشتركة</span>
             </button>
           </div>
 

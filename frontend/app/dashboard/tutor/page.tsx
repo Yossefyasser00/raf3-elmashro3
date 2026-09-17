@@ -186,6 +186,7 @@ export default function TutorDashboardPage() {
   const [tutorProfileId, setTutorProfileId] = useState<string | null>(null);
   const [tutorFullName, setTutorFullName] = useState<string>("");
   const [tutorBio, setTutorBio] = useState<string>("");
+  const [tutorMeetingUrl, setTutorMeetingUrl] = useState<string>("");
   const [tutorPriceMin, setTutorPriceMin] = useState<number>(200);
   const [tutorPriceMax, setTutorPriceMax] = useState<number>(450);
   const [tutorTeachingMode, setTutorTeachingMode] = useState<"ONLINE" | "IN_PERSON" | "BOTH">("BOTH");
@@ -366,6 +367,7 @@ export default function TutorDashboardPage() {
         setTutorProfileId(profile.id);
         setTutorFullName(profile.user?.fullName || "");
         setTutorBio(profile.bio || "");
+        setTutorMeetingUrl(profile.meetingUrl || "");
         setTutorPriceMin(profile.priceMinEGP || 200);
         setTutorPriceMax(profile.priceMaxEGP || 450);
         setTutorTeachingMode(profile.teachingMode || "BOTH");
@@ -411,6 +413,7 @@ export default function TutorDashboardPage() {
         },
         body: JSON.stringify({
           bio: tutorBio,
+          meetingUrl: tutorMeetingUrl,
           priceMinEGP: tutorPriceMin,
           priceMaxEGP: tutorPriceMax,
           teachingMode: tutorTeachingMode,
@@ -428,7 +431,7 @@ export default function TutorDashboardPage() {
       });
 
       if (profileRes.ok && subjectsRes.ok) {
-        triggerToast("✅ تم حفظ وتحديث بيانات البروفايل والمواد بنجاح!");
+        triggerToast("✅ تم حفظ وتحديث بيانات البروفايل ورابط Google Meet بنجاح!");
       } else {
         triggerToast("⚠️ حدث خطأ أثناء الحفظ، يرجى المحاولة مرة أخرى");
       }
@@ -543,15 +546,31 @@ export default function TutorDashboardPage() {
     triggerToast("✅ تم إنهاء الجلسة بنجاح وإيداع أرباحك الصافية في محفظتك!");
   }
 
-  // Start Session (ONLINE) — calls backend /start then opens Jitsi Meet
-  async function handleStartSession(requestId: string) {
+  // Start Session (ONLINE) — calls backend /start then opens Google Meet
+  async function handleStartSession(requestId: string, customMeetUrl?: string) {
     const token = localStorage.getItem("fz_token");
+    let urlToUse = (customMeetUrl || tutorMeetingUrl || "").trim();
+
+    if (!urlToUse) {
+      const entered = window.prompt(
+        "أدخل رابط Google Meet لهذه المحاضرة (أو اضغط موافق لفتح رابط جديد عبر meet.google.com/new):",
+        "https://meet.google.com/new"
+      );
+      if (entered === null) return;
+      urlToUse = entered.trim() || "https://meet.google.com/new";
+      setTutorMeetingUrl(urlToUse);
+    }
+
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/requests/${requestId}/start`,
         {
           method: "PATCH",
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ meetingUrl: urlToUse }),
         }
       );
       if (!res.ok) {
@@ -559,10 +578,11 @@ export default function TutorDashboardPage() {
         triggerToast(`⚠️ ${err.message || "تعذر بدء الجلسة، حاول مجدداً"}`);
         return;
       }
-      triggerToast("🚀 جارٍ فتح قاعة الجلسة...");
+      triggerToast("🚀 تم بدء الجلسة! جارٍ فتح Google Meet...");
       setTimeout(() => {
-        window.open(`https://meet.jit.si/fokzanqa-${requestId}`, "_blank");
-      }, 800);
+        window.open(urlToUse, "_blank");
+      }, 500);
+      loadDashboardData();
     } catch {
       triggerToast("⚠️ تعذر الاتصال بالسيرفر لبدء الجلسة");
     }
@@ -1145,17 +1165,31 @@ export default function TutorDashboardPage() {
                         <>
                           <button
                             onClick={() => handleCompleteBooking(b.id)}
-                            className="rounded-full border border-sand bg-white px-3.5 py-2 text-xs font-bold text-ink hover:bg-sand"
+                            className="rounded-full border border-sand bg-white px-3.5 py-2 text-xs font-bold text-ink hover:bg-sand transition"
                           >
                             إنهاء الجلسة ✓
                           </button>
                           {b.mode === "ONLINE" ? (
-                            <button
-                              onClick={() => handleStartSession(b.requestId)}
-                              className="rounded-full bg-mint px-5 py-2 text-xs font-black text-white hover:brightness-95 shadow-sm"
-                            >
-                              بدء الجلسة الآن 🎥
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleStartSession(b.requestId, b.meetUrl)}
+                                className="rounded-full bg-emerald-600 px-5 py-2 text-xs font-black text-white hover:bg-emerald-700 transition shadow-sm flex items-center gap-1.5"
+                              >
+                                <span>بدء Google Meet 🎥</span>
+                              </button>
+                              {(b.meetUrl || tutorMeetingUrl) && (
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(b.meetUrl || tutorMeetingUrl);
+                                    triggerToast("📋 تم نسخ رابط Google Meet بنجاح!");
+                                  }}
+                                  className="rounded-full border border-sand bg-white px-3 py-2 text-xs font-bold text-ink/70 hover:bg-sand"
+                                  title="نسخ رابط Google Meet"
+                                >
+                                  نسخ الرابط 📋
+                                </button>
+                              )}
+                            </div>
                           ) : (
                             <span className="rounded-full bg-ink/10 px-3.5 py-2 text-xs font-bold text-ink/60">
                               🏫 حضوري
@@ -1710,7 +1744,46 @@ export default function TutorDashboardPage() {
                 </div>
               </div>
 
-
+              {/* Google Meet Settings */}
+              <div className="rounded-3xl border border-sand bg-white p-6 shadow-sm space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-base font-black text-ink flex items-center gap-2">
+                    <span className="text-xl">🎥</span>
+                    <span>رابط Google Meet المعتمد للمحاضرات</span>
+                  </h2>
+                  <a
+                    href="https://meet.google.com/new"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-blue-50 border border-blue-200 px-3.5 py-1.5 text-xs font-black text-blue-600 hover:bg-blue-100 transition"
+                  >
+                    <span>+ إنشاء رابط Google Meet جديد ↗</span>
+                  </a>
+                </div>
+                <p className="text-xs text-ink/60">
+                  أدخل رابط Google Meet الدائم الخاص بك (مثال: <code className="font-mono text-emerald-600">https://meet.google.com/xxx-yyyy-zzz</code>). سيتم توجيه الطلاب مباشرة إلى هذا الرابط فور بدء الجلسة.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={tutorMeetingUrl}
+                    onChange={(e) => setTutorMeetingUrl(e.target.value)}
+                    placeholder="https://meet.google.com/abc-defg-hij"
+                    className="flex-1 rounded-2xl border border-sand bg-cream/40 p-3.5 text-sm font-semibold text-ink outline-none transition focus:border-mint focus:bg-white"
+                    dir="ltr"
+                  />
+                  {tutorMeetingUrl && (
+                    <a
+                      href={tutorMeetingUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-2xl bg-sand/60 px-4 py-3 text-xs font-bold text-ink hover:bg-sand transition flex items-center gap-1"
+                    >
+                      تجربة الرابط ↗
+                    </a>
+                  )}
+                </div>
+              </div>
 
               {/* Subjects & Skills Manager (المواد التي تدرسها) */}
               <div className="rounded-3xl border border-sand bg-white p-6 shadow-sm space-y-5">

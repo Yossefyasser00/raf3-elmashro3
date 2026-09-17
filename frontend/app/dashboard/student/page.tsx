@@ -278,6 +278,11 @@ export default function StudentDashboardPage() {
               phone: "",
               rating: request.booking.tutor?.ratingAvg ?? 5.0,
               meetingUrl: request.booking.tutor?.meetingUrl ?? undefined,
+            } : request.selectedTutorId ? {
+              name: request.matches?.find((m: any) => m.tutorId === request.selectedTutorId)?.tutor?.user?.fullName ?? "المدرس",
+              phone: "",
+              rating: request.matches?.find((m: any) => m.tutorId === request.selectedTutorId)?.tutor?.ratingAvg ?? 5.0,
+              meetingUrl: request.matches?.find((m: any) => m.tutorId === request.selectedTutorId)?.tutor?.meetingUrl ?? undefined,
             } : undefined,
           })),
         );
@@ -995,39 +1000,62 @@ export default function StudentDashboardPage() {
               )}
 
               {/* Confirmed Active Session Banner */}
-              {requests.filter(r => r.status === "CONFIRMED").map(req => (
-                <div key={req.id} className="rounded-3xl border border-mint/40 bg-gradient-to-br from-mint/15 to-white p-6 shadow-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-mint text-white text-2xl shadow">
-                        <Video className="h-7 w-7" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="rounded-full bg-mint/20 px-2.5 py-0.5 text-[11px] font-black text-mint">
-                            جلسة مؤكدة جاهزة
-                          </span>
-                          <span className="text-xs font-bold text-ink/40">{req.preferredTime}</span>
+              {requests.filter(r => r.status === "CONFIRMED" || r.status === "IN_PROGRESS").map(req => {
+                const meetUrl = req.selectedTutor?.meetingUrl || `https://meet.jit.si/fokzanqa-${req.id}`;
+                return (
+                  <div key={req.id} className="rounded-3xl border-2 border-emerald-500/40 bg-gradient-to-br from-emerald-500/15 via-white to-cream p-6 shadow-sm space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-white text-2xl shadow-md shadow-emerald-600/30">
+                          <Video className="h-7 w-7" />
                         </div>
-                        <h3 className="text-lg font-black text-ink mt-0.5">{req.subject} — مع {req.selectedTutor?.name}</h3>
-                        <p className="text-xs text-ink/60">تأكد من فتح الميكروفون وتجهيز الأسئلة قبل الموعد بـ 5 دقائق.</p>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[11px] font-black text-emerald-800">
+                              {req.status === "IN_PROGRESS" ? "🔴 الحصة جارية الآن" : "✅ جلسة مؤكدة جاهزة"}
+                            </span>
+                            <span className="text-xs font-bold text-ink/50">{req.preferredTime}</span>
+                          </div>
+                          <h3 className="text-lg font-black text-ink mt-0.5">{req.subject} — مع {req.selectedTutor?.name}</h3>
+                          <p className="text-xs text-ink/60">ادخل مباشرة عبر Google Meet لمقابلة المدرس بالصوت والصورة والشاشة.</p>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="flex items-center gap-3">
-                      
-                      <a
-                        href={`https://meet.jit.si/fokzanqa-${req.id}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-full bg-mint px-6 py-2.5 text-xs font-black text-white hover:brightness-95 transition shadow-md shadow-mint/20"
-                      >
-                        دخول قاعة الجلسة الآن 🎥
-                      </a>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {req.selectedTutor?.meetingUrl ? (
+                          <a
+                            href={req.selectedTutor.meetingUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-full bg-emerald-600 px-6 py-2.5 text-xs font-black text-white hover:bg-emerald-700 transition shadow-md shadow-emerald-600/25 flex items-center gap-1.5"
+                          >
+                            <span>دخول Google Meet الآن 🎥</span>
+                          </a>
+                        ) : (
+                          <Link
+                            href={`/room/${req.id}`}
+                            className="rounded-full bg-emerald-600 px-6 py-2.5 text-xs font-black text-white hover:bg-emerald-700 transition shadow-md shadow-emerald-600/25 flex items-center gap-1.5"
+                          >
+                            <span>دخول قاعة الجلسة 🚀</span>
+                          </Link>
+                        )}
+                        {req.selectedTutor?.meetingUrl && (
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(req.selectedTutor!.meetingUrl!);
+                              triggerToast("📋 تم نسخ رابط Google Meet بنجاح!");
+                            }}
+                            className="rounded-full border border-sand bg-white px-3.5 py-2 text-xs font-bold text-ink hover:bg-sand transition"
+                            title="نسخ رابط المحاضرة"
+                          >
+                            نسخ الرابط 📋
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -1283,13 +1311,38 @@ export default function StudentDashboardPage() {
                         </p>
                       </div>
                     </div>
-                    <a
-                      href={`/room/${req.id}`}
-                      className="rounded-2xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 transition shadow-lg shadow-red-600/30 flex items-center gap-2"
-                    >
-                      <Video className="h-4 w-4" />
-                      دخول قاعة الحصة الآن 🎥
-                    </a>
+                    <div className="flex items-center gap-2">
+                      {req.selectedTutor?.meetingUrl ? (
+                        <a
+                          href={req.selectedTutor.meetingUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-2xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 transition shadow-lg shadow-red-600/30 flex items-center gap-2"
+                        >
+                          <Video className="h-4 w-4" />
+                          دخول محاضرة Google Meet الآن 🎥
+                        </a>
+                      ) : (
+                        <a
+                          href={`/room/${req.id}`}
+                          className="rounded-2xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 transition shadow-lg shadow-red-600/30 flex items-center gap-2"
+                        >
+                          <Video className="h-4 w-4" />
+                          دخول قاعة الحصة الآن 🎥
+                        </a>
+                      )}
+                      {req.selectedTutor?.meetingUrl && (
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(req.selectedTutor!.meetingUrl!);
+                            triggerToast("📋 تم نسخ رابط Google Meet بنجاح!");
+                          }}
+                          className="rounded-2xl border border-red-200 bg-white px-4 py-3 text-xs font-black text-red-600 hover:bg-red-50"
+                        >
+                          نسخ الرابط 📋
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1377,20 +1430,46 @@ export default function StudentDashboardPage() {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-3">
-                              {isOnline && isLive && (
-                                <a
-                                  href={`/room/${req.id}`}
-                                  className="rounded-2xl bg-red-600 px-5 py-2.5 text-xs font-black text-white hover:bg-red-700 transition shadow-md flex items-center gap-2"
-                                >
-                                  <Video className="h-4 w-4" />
-                                  دخول القاعة الآن 🎥
-                                </a>
+                            <div className="flex items-center gap-2">
+                              {isOnline && (isLive || req.status === "CONFIRMED") && (
+                                <>
+                                  {req.selectedTutor?.meetingUrl ? (
+                                    <a
+                                      href={req.selectedTutor.meetingUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="rounded-2xl bg-emerald-600 px-5 py-2.5 text-xs font-black text-white hover:bg-emerald-700 transition shadow-md flex items-center gap-1.5"
+                                    >
+                                      <Video className="h-4 w-4" />
+                                      دخول Google Meet 🎥
+                                    </a>
+                                  ) : (
+                                    <a
+                                      href={`/room/${req.id}`}
+                                      className="rounded-2xl bg-emerald-600 px-5 py-2.5 text-xs font-black text-white hover:bg-emerald-700 transition shadow-md flex items-center gap-1.5"
+                                    >
+                                      <Video className="h-4 w-4" />
+                                      دخول القاعة الآن 🚀
+                                    </a>
+                                  )}
+                                  {req.selectedTutor?.meetingUrl && (
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(req.selectedTutor!.meetingUrl!);
+                                        triggerToast("📋 تم نسخ رابط Google Meet بنجاح!");
+                                      }}
+                                      className="rounded-2xl border border-sand bg-white px-3 py-2.5 text-xs font-bold text-ink hover:bg-sand"
+                                      title="نسخ رابط المحاضرة"
+                                    >
+                                      📋
+                                    </button>
+                                  )}
+                                </>
                               )}
-                              {isOnline && !isLive && (
+                              {isOnline && !isLive && req.status !== "CONFIRMED" && (
                                 <span className="rounded-2xl bg-ink/5 px-4 py-2.5 text-xs font-bold text-ink/50 flex items-center gap-2">
                                   <Clock className="h-3.5 w-3.5" />
-                                  القاعة ستفتح عند دخول المدرس
+                                  القاعة ستفتح عند تأكيد الموعد
                                 </span>
                               )}
                               {!isOnline && (

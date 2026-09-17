@@ -554,7 +554,7 @@ export class RequestsService {
   }
 
   // Start / Open Session room (Only allowed after Admin Confirmed)
-  async startSession(requestId: string, tutorId: string) {
+  async startSession(requestId: string, tutorId: string, meetingUrl?: string) {
     const request = await this.prisma.request.findUnique({
       where: { id: requestId },
       include: { booking: true },
@@ -578,13 +578,23 @@ export class RequestsService {
       throw new BadRequestException('الجلسة في انتظار تأكيد استلام الدفع من إدارة المنصة أولاً');
     }
 
-    if (request.status === RequestStatus.CONFIRMED) {
+    if (meetingUrl && tutorProfile) {
+      await this.prisma.tutorProfile.update({
+        where: { id: tutorProfile.id },
+        data: { meetingUrl: meetingUrl.trim() },
+      });
+    }
+
+    if (
+      request.status === RequestStatus.CONFIRMED ||
+      request.status === RequestStatus.TUTOR_SELECTED
+    ) {
       await this.transition(
         request.id,
         request.status,
         RequestStatus.IN_PROGRESS,
         tutorId,
-        'Tutor started the live session room',
+        'Tutor started the live Google Meet session',
       );
     }
 

@@ -51,6 +51,20 @@ async function bootstrap(): Promise<Express> {
     }),
   );
 
+  app.useGlobalFilters({
+    catch(exception: any, host: any) {
+      const ctx = host.switchToHttp();
+      const response = ctx.getResponse();
+      const status = exception?.getStatus ? exception.getStatus() : 500;
+      console.error('APP_EXCEPTION:', exception);
+      response.status(status).json({
+        statusCode: status,
+        message: exception?.message || 'Internal Error',
+        details: exception?.response || String(exception),
+      });
+    },
+  });
+
   await app.init();
   return server;
 }
@@ -59,6 +73,13 @@ export default async function handler(req: any, res: any) {
   try {
     if (!serverInstance) {
       serverInstance = await bootstrap();
+    }
+    if (req.url) {
+      // Fix duplicate /api/v1 prefixes if frontend passed baseUrl with /api/v1
+      req.url = req.url.replace(/^\/api\/v1\/api\/v1/, '/api/v1');
+      if (!req.url.startsWith('/api/v1')) {
+        req.url = '/api/v1' + (req.url.startsWith('/') ? req.url : '/' + req.url);
+      }
     }
     return serverInstance(req, res);
   } catch (err: any) {
