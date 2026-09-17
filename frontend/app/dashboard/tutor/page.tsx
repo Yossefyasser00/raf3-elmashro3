@@ -1005,12 +1005,23 @@ export default function TutorDashboardPage() {
                         إنهاء واحتساب الأرباح ✓
                       </button>
                       {b.mode === "ONLINE" ? (
-                        <button
-                          onClick={() => handleStartSession(b.requestId)}
-                          className="rounded-full bg-mint px-6 py-2 text-xs font-black text-white hover:brightness-95 shadow-md shadow-mint/20"
-                        >
-                          بدء الجلسة الآن 🎥
-                        </button>
+                        b.meetUrl ? (
+                          <a
+                            href={b.meetUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-full bg-emerald-600 px-6 py-2 text-xs font-black text-white hover:bg-emerald-700 shadow-md shadow-emerald-600/20"
+                          >
+                            دخول المحاضرة (Host) 🎥
+                          </a>
+                        ) : (
+                          <button
+                            onClick={() => handleOpenHostMeetModal(b)}
+                            className="rounded-full bg-mint px-6 py-2 text-xs font-black text-white hover:brightness-95 shadow-md shadow-mint/20"
+                          >
+                            بدء الجلسة كـ Host 🎥
+                          </button>
+                        )
                       ) : (
                         <span className="rounded-full bg-ink/10 px-4 py-2 text-xs font-bold text-ink/60">
                           🏫 حصة حضورية
