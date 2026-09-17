@@ -186,7 +186,6 @@ export default function TutorDashboardPage() {
   const [tutorProfileId, setTutorProfileId] = useState<string | null>(null);
   const [tutorFullName, setTutorFullName] = useState<string>("");
   const [tutorBio, setTutorBio] = useState<string>("");
-  const [tutorMeetingUrl, setTutorMeetingUrl] = useState<string>("");
   const [tutorPriceMin, setTutorPriceMin] = useState<number>(200);
   const [tutorPriceMax, setTutorPriceMax] = useState<number>(450);
   const [tutorTeachingMode, setTutorTeachingMode] = useState<"ONLINE" | "IN_PERSON" | "BOTH">("BOTH");
@@ -194,6 +193,11 @@ export default function TutorDashboardPage() {
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
   const [newSubjectName, setNewSubjectName] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Host Meet Modal State
+  const [startMeetModalBooking, setStartMeetModalBooking] = useState<BookingItem | null>(null);
+  const [inputMeetUrl, setInputMeetUrl] = useState<string>("");
+  const [isStartingMeet, setIsStartingMeet] = useState(false);
 
   // Toast
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -367,7 +371,6 @@ export default function TutorDashboardPage() {
         setTutorProfileId(profile.id);
         setTutorFullName(profile.user?.fullName || "");
         setTutorBio(profile.bio || "");
-        setTutorMeetingUrl(profile.meetingUrl || "");
         setTutorPriceMin(profile.priceMinEGP || 200);
         setTutorPriceMax(profile.priceMaxEGP || 450);
         setTutorTeachingMode(profile.teachingMode || "BOTH");
@@ -413,7 +416,6 @@ export default function TutorDashboardPage() {
         },
         body: JSON.stringify({
           bio: tutorBio,
-          meetingUrl: tutorMeetingUrl,
           priceMinEGP: tutorPriceMin,
           priceMaxEGP: tutorPriceMax,
           teachingMode: tutorTeachingMode,
@@ -431,7 +433,7 @@ export default function TutorDashboardPage() {
       });
 
       if (profileRes.ok && subjectsRes.ok) {
-        triggerToast("✅ تم حفظ وتحديث بيانات البروفايل ورابط Google Meet بنجاح!");
+        triggerToast("✅ تم حفظ وتحديث بيانات البروفايل والمواد بنجاح!");
       } else {
         triggerToast("⚠️ حدث خطأ أثناء الحفظ، يرجى المحاولة مرة أخرى");
       }
@@ -546,45 +548,58 @@ export default function TutorDashboardPage() {
     triggerToast("✅ تم إنهاء الجلسة بنجاح وإيداع أرباحك الصافية في محفظتك!");
   }
 
-  // Start Session (ONLINE) — calls backend /start then opens Google Meet
-  async function handleStartSession(requestId: string, customMeetUrl?: string) {
-    const token = localStorage.getItem("fz_token");
-    let urlToUse = (customMeetUrl || tutorMeetingUrl || "").trim();
+  // Open Host Modal to start Google Meet
+  function handleOpenHostMeetModal(booking: BookingItem) {
+    setStartMeetModalBooking(booking);
+    setInputMeetUrl(booking.meetUrl || "");
+  }
 
-    if (!urlToUse) {
-      const entered = window.prompt(
-        "أدخل رابط Google Meet لهذه المحاضرة (أو اضغط موافق لفتح رابط جديد عبر meet.google.com/new):",
-        "https://meet.google.com/new"
-      );
-      if (entered === null) return;
-      urlToUse = entered.trim() || "https://meet.google.com/new";
-      setTutorMeetingUrl(urlToUse);
+  // Confirm Start Session as Host
+  async function handleConfirmStartMeetSession(e: React.FormEvent) {
+    e.preventDefault();
+    if (!startMeetModalBooking) return;
+    const cleanUrl = inputMeetUrl.trim();
+    if (!cleanUrl || !cleanUrl.startsWith("http")) {
+      triggerToast("⚠️ يرجى لصق رابط Google Meet صحيح يبدأ بـ https://");
+      return;
     }
+
+    setIsStartingMeet(true);
+    const token = localStorage.getItem("fz_token");
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/requests/${requestId}/start`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/requests/${startMeetModalBooking.requestId}/start`,
         {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ meetingUrl: urlToUse }),
+          body: JSON.stringify({ meetingUrl: cleanUrl }),
         }
       );
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        triggerToast(`⚠️ ${err.message || "تعذر بدء الجلسة، حاول مجدداً"}`);
-        return;
+        throw new Error(err.message || "تعذر بدء الجلسة");
       }
-      triggerToast("🚀 تم بدء الجلسة! جارٍ فتح Google Meet...");
-      setTimeout(() => {
-        window.open(urlToUse, "_blank");
-      }, 500);
+
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === startMeetModalBooking.id
+            ? { ...b, meetUrl: cleanUrl }
+            : b
+        )
+      );
+
+      triggerToast("🚀 تم بدء الجلسة بنجاح وتوجيه الطالب لنفس رابط المحاضرة!");
+      setStartMeetModalBooking(null);
       loadDashboardData();
-    } catch {
-      triggerToast("⚠️ تعذر الاتصال بالسيرفر لبدء الجلسة");
+    } catch (err: any) {
+      triggerToast(`⚠️ ${err.message || "حدث خطأ أثناء بدء الجلسة"}`);
+    } finally {
+      setIsStartingMeet(false);
     }
   }
 
@@ -1171,22 +1186,40 @@ export default function TutorDashboardPage() {
                           </button>
                           {b.mode === "ONLINE" ? (
                             <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleStartSession(b.requestId, b.meetUrl)}
-                                className="rounded-full bg-emerald-600 px-5 py-2 text-xs font-black text-white hover:bg-emerald-700 transition shadow-sm flex items-center gap-1.5"
-                              >
-                                <span>بدء Google Meet 🎥</span>
-                              </button>
-                              {(b.meetUrl || tutorMeetingUrl) && (
+                              {b.meetUrl ? (
+                                <>
+                                  <a
+                                    href={b.meetUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="rounded-full bg-emerald-600 px-5 py-2 text-xs font-black text-white hover:bg-emerald-700 transition shadow-sm flex items-center gap-1.5"
+                                  >
+                                    <span>دخول المحاضرة (Host) 🎥</span>
+                                  </a>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(b.meetUrl!);
+                                      triggerToast("📋 تم نسخ رابط Google Meet بنجاح!");
+                                    }}
+                                    className="rounded-full border border-sand bg-white px-3 py-2 text-xs font-bold text-ink/70 hover:bg-sand"
+                                    title="نسخ رابط المحاضرة"
+                                  >
+                                    📋
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenHostMeetModal(b)}
+                                    className="rounded-full border border-sand bg-white px-3 py-2 text-xs font-bold text-ink/50 hover:text-ink"
+                                    title="تغيير أو تحديث الرابط"
+                                  >
+                                    ⚙️
+                                  </button>
+                                </>
+                              ) : (
                                 <button
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(b.meetUrl || tutorMeetingUrl);
-                                    triggerToast("📋 تم نسخ رابط Google Meet بنجاح!");
-                                  }}
-                                  className="rounded-full border border-sand bg-white px-3 py-2 text-xs font-bold text-ink/70 hover:bg-sand"
-                                  title="نسخ رابط Google Meet"
+                                  onClick={() => handleOpenHostMeetModal(b)}
+                                  className="rounded-full bg-emerald-600 px-5 py-2 text-xs font-black text-white hover:bg-emerald-700 transition shadow-sm flex items-center gap-1.5 animate-pulse-slow"
                                 >
-                                  نسخ الرابط 📋
+                                  <span>بدء الجلسة كـ Host (Google Meet) 🎥</span>
                                 </button>
                               )}
                             </div>
@@ -1744,47 +1777,6 @@ export default function TutorDashboardPage() {
                 </div>
               </div>
 
-              {/* Google Meet Settings */}
-              <div className="rounded-3xl border border-sand bg-white p-6 shadow-sm space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h2 className="text-base font-black text-ink flex items-center gap-2">
-                    <span className="text-xl">🎥</span>
-                    <span>رابط Google Meet المعتمد للمحاضرات</span>
-                  </h2>
-                  <a
-                    href="https://meet.google.com/new"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-blue-50 border border-blue-200 px-3.5 py-1.5 text-xs font-black text-blue-600 hover:bg-blue-100 transition"
-                  >
-                    <span>+ إنشاء رابط Google Meet جديد ↗</span>
-                  </a>
-                </div>
-                <p className="text-xs text-ink/60">
-                  أدخل رابط Google Meet الدائم الخاص بك (مثال: <code className="font-mono text-emerald-600">https://meet.google.com/xxx-yyyy-zzz</code>). سيتم توجيه الطلاب مباشرة إلى هذا الرابط فور بدء الجلسة.
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    value={tutorMeetingUrl}
-                    onChange={(e) => setTutorMeetingUrl(e.target.value)}
-                    placeholder="https://meet.google.com/abc-defg-hij"
-                    className="flex-1 rounded-2xl border border-sand bg-cream/40 p-3.5 text-sm font-semibold text-ink outline-none transition focus:border-mint focus:bg-white"
-                    dir="ltr"
-                  />
-                  {tutorMeetingUrl && (
-                    <a
-                      href={tutorMeetingUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-2xl bg-sand/60 px-4 py-3 text-xs font-bold text-ink hover:bg-sand transition flex items-center gap-1"
-                    >
-                      تجربة الرابط ↗
-                    </a>
-                  )}
-                </div>
-              </div>
-
               {/* Subjects & Skills Manager (المواد التي تدرسها) */}
               <div className="rounded-3xl border border-sand bg-white p-6 shadow-sm space-y-5">
                 <div className="flex items-center justify-between">
@@ -2099,6 +2091,97 @@ export default function TutorDashboardPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL: START GOOGLE MEET AS HOST
+      ======================================================== */}
+      {startMeetModalBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="w-full max-w-lg rounded-3xl border border-sand bg-white p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-sand pb-3">
+              <div>
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">
+                  🎥 بدء الجلسة كـ Host
+                </span>
+                <h3 className="mt-1 text-lg font-black text-ink">
+                  {startMeetModalBooking.subject} — مع الطالب {startMeetModalBooking.student}
+                </h3>
+              </div>
+              <button
+                onClick={() => setStartMeetModalBooking(null)}
+                className="rounded-full bg-sand px-3 py-1 text-xs font-black text-ink/60 hover:bg-sand/80"
+              >
+                ✕ إغلاق
+              </button>
+            </div>
+
+            <div className="rounded-2xl bg-emerald-50/70 border border-emerald-200 p-4 space-y-2">
+              <div className="text-xs font-black text-emerald-900 flex items-center gap-1.5">
+                <span>⚡ خطوات بدء المحاضرة ومشاركة الطالب:</span>
+              </div>
+              <ol className="text-xs text-ink/70 space-y-1.5 list-decimal list-inside pr-1">
+                <li>اضغط على الزر الأزرق أدناه لفتح غرفة جديدة على Google Meet كـ Host.</li>
+                <li>انسخ رابط الغرفة والصقه في الخانة أدناه واضغط تأكيد.</li>
+                <li>سيظهر نفس الرابط للطالب فوراً ليدخل معك في نفس الغرفة بالضبط!</li>
+              </ol>
+            </div>
+
+            <form onSubmit={handleConfirmStartMeetSession} className="space-y-4">
+              <div>
+                <a
+                  href="https://meet.google.com/new"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white p-3.5 text-xs font-black transition shadow-md shadow-blue-600/20"
+                >
+                  <Video className="h-4 w-4" />
+                  <span>1️⃣ اضغط هنا لفتح وإنشاء غرفة Google Meet جديدة ↗</span>
+                </a>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-ink mb-1.5">
+                  2️⃣ الصق رابط Google Meet الخاص بالغرفة هنا:
+                </label>
+                <input
+                  type="url"
+                  required
+                  placeholder="https://meet.google.com/xxx-yyyy-zzz"
+                  value={inputMeetUrl}
+                  onChange={(e) => setInputMeetUrl(e.target.value)}
+                  className="w-full rounded-2xl border border-sand bg-cream/40 p-3.5 text-sm font-semibold text-ink outline-none transition focus:border-emerald-500 focus:bg-white"
+                  dir="ltr"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-sand">
+                <button
+                  type="button"
+                  onClick={() => setStartMeetModalBooking(null)}
+                  className="rounded-full border border-sand px-5 py-2.5 text-xs font-bold text-ink/70 hover:bg-sand"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={isStartingMeet || !inputMeetUrl.trim()}
+                  className="rounded-full bg-emerald-600 px-7 py-2.5 text-xs font-black text-white hover:bg-emerald-700 transition shadow-md shadow-emerald-600/20 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isStartingMeet ? (
+                    <>
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      <span>جارٍ التفعيل ودعوة الطالب...</span>
+                    </>
+                  ) : (
+                    <span>تأكيد وبدء الجلسة ودخول الطالب 🚀</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </main>

@@ -119,6 +119,7 @@ export class RequestsService {
                     ratingAvg: true,
                     completedSessionsCount: true,
                     bio: true,
+                    meetingUrl: true,
                   },
                 },
               },

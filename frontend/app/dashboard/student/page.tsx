@@ -312,7 +312,7 @@ export default function StudentDashboardPage() {
     }
 
     loadRequests();
-    const interval = setInterval(loadRequests, 10000);
+    const interval = setInterval(loadRequests, 4000);
     return () => clearInterval(interval);
   }, []);
 
@@ -1001,55 +1001,89 @@ export default function StudentDashboardPage() {
 
               {/* Confirmed Active Session Banner */}
               {requests.filter(r => r.status === "CONFIRMED" || r.status === "IN_PROGRESS").map(req => {
-                const meetUrl = req.selectedTutor?.meetingUrl || `https://meet.jit.si/fokzanqa-${req.id}`;
+                const hasStarted = !!req.selectedTutor?.meetingUrl || req.status === "IN_PROGRESS";
+                const meetUrl = req.selectedTutor?.meetingUrl;
+
                 return (
-                  <div key={req.id} className="rounded-3xl border-2 border-emerald-500/40 bg-gradient-to-br from-emerald-500/15 via-white to-cream p-6 shadow-sm space-y-3">
+                  <div
+                    key={req.id}
+                    className={`rounded-3xl border-2 p-6 shadow-sm space-y-3 transition ${
+                      hasStarted && meetUrl
+                        ? "border-emerald-500 bg-gradient-to-br from-emerald-500/15 via-white to-cream"
+                        : "border-sun/60 bg-gradient-to-br from-sun/10 via-white to-cream"
+                    }`}
+                  >
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       <div className="flex items-center gap-4">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-white text-2xl shadow-md shadow-emerald-600/30">
+                        <div
+                          className={`flex h-14 w-14 items-center justify-center rounded-2xl text-white text-2xl shadow-md ${
+                            hasStarted && meetUrl
+                              ? "bg-emerald-600 shadow-emerald-600/30 animate-bounce-slow"
+                              : "bg-sun text-ink shadow-sun/30"
+                          }`}
+                        >
                           <Video className="h-7 w-7" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[11px] font-black text-emerald-800">
-                              {req.status === "IN_PROGRESS" ? "🔴 الحصة جارية الآن" : "✅ جلسة مؤكدة جاهزة"}
-                            </span>
+                            {hasStarted && meetUrl ? (
+                              <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[11px] font-black text-emerald-800 animate-pulse">
+                                🔴 المدرس بدأ المحاضرة الآن على Google Meet!
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-sun/25 px-2.5 py-0.5 text-[11px] font-black text-ink">
+                                ⏳ الجلسة مؤكدة — في انتظار فتح المدرس للقاعة كـ Host
+                              </span>
+                            )}
                             <span className="text-xs font-bold text-ink/50">{req.preferredTime}</span>
                           </div>
-                          <h3 className="text-lg font-black text-ink mt-0.5">{req.subject} — مع {req.selectedTutor?.name}</h3>
-                          <p className="text-xs text-ink/60">ادخل مباشرة عبر Google Meet لمقابلة المدرس بالصوت والصورة والشاشة.</p>
+                          <h3 className="text-lg font-black text-ink mt-0.5">
+                            {req.subject} — {req.topic} مع {req.selectedTutor?.name}
+                          </h3>
+                          <p className="text-xs text-ink/60">
+                            {hasStarted && meetUrl
+                              ? "اضغط على الزر الأخضر للدخول فوراً في نفس جلسة Google Meet مع المدرس."
+                              : "بمجرد أن يضغط المدرس على بدء الجلسة، سيتاح لك زر الدخول الأخضر فوراً تلقائياً."}
+                          </p>
                         </div>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2">
-                        {req.selectedTutor?.meetingUrl ? (
-                          <a
-                            href={req.selectedTutor.meetingUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="rounded-full bg-emerald-600 px-6 py-2.5 text-xs font-black text-white hover:bg-emerald-700 transition shadow-md shadow-emerald-600/25 flex items-center gap-1.5"
-                          >
-                            <span>دخول Google Meet الآن 🎥</span>
-                          </a>
+                        {hasStarted && meetUrl ? (
+                          <>
+                            <a
+                              href={meetUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded-full bg-emerald-600 px-6 py-3 text-xs font-black text-white hover:bg-emerald-700 transition shadow-lg shadow-emerald-600/25 flex items-center gap-1.5 animate-pulse-slow"
+                            >
+                              <Video className="h-4 w-4" />
+                              <span>انضمام للمحاضرة مع المدرس الآن (Google Meet) 🚀</span>
+                            </a>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(meetUrl);
+                                triggerToast("📋 تم نسخ رابط Google Meet بنجاح!");
+                              }}
+                              className="rounded-full border border-sand bg-white px-3.5 py-2.5 text-xs font-bold text-ink hover:bg-sand transition"
+                              title="نسخ رابط المحاضرة"
+                            >
+                              نسخ الرابط 📋
+                            </button>
+                          </>
                         ) : (
-                          <Link
-                            href={`/room/${req.id}`}
-                            className="rounded-full bg-emerald-600 px-6 py-2.5 text-xs font-black text-white hover:bg-emerald-700 transition shadow-md shadow-emerald-600/25 flex items-center gap-1.5"
-                          >
-                            <span>دخول قاعة الجلسة 🚀</span>
-                          </Link>
-                        )}
-                        {req.selectedTutor?.meetingUrl && (
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(req.selectedTutor!.meetingUrl!);
-                              triggerToast("📋 تم نسخ رابط Google Meet بنجاح!");
-                            }}
-                            className="rounded-full border border-sand bg-white px-3.5 py-2 text-xs font-bold text-ink hover:bg-sand transition"
-                            title="نسخ رابط المحاضرة"
-                          >
-                            نسخ الرابط 📋
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-full bg-ink/5 px-4 py-2.5 text-xs font-bold text-ink/50 flex items-center gap-2">
+                              <Clock className="h-3.5 w-3.5 animate-spin text-sun" />
+                              <span>في انتظار قيام المدرس ببدء الجلسة كـ Host...</span>
+                            </span>
+                            <Link
+                              href={`/room/${req.id}`}
+                              className="rounded-full border border-sand bg-white px-4 py-2 text-xs font-bold text-ink hover:bg-sand"
+                            >
+                              قاعة الانتظار ↗
+                            </Link>
+                          </div>
                         )}
                       </div>
                     </div>
