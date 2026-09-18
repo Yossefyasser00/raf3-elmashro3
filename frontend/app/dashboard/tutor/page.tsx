@@ -542,7 +542,7 @@ export default function TutorDashboardPage() {
     );
     const b = bookings.find((x) => x.id === bookingId);
     if (b) {
-      const earned = Math.round(b.price * 0.85); // minus 20% platform commission
+      const earned = Math.round(b.price * 0.8); // minus 20% platform commission
       setClearedEarnings((c) => c + earned);
     }
     triggerToast("✅ تم إنهاء الجلسة بنجاح وإيداع أرباحك الصافية في محفظتك!");
@@ -1089,7 +1089,7 @@ export default function TutorDashboardPage() {
                       <div className="text-left space-y-2 shrink-0 min-w-[220px]">
                         <div className="text-xs font-bold text-ink/40">سعر الطالب المعروض</div>
                         <div className="text-2xl font-black text-mint">{l.budget} ج.م</div>
-                        <div className="text-[11px] text-ink/40">صافي ربحك: {Math.round(l.budget * 0.85)} ج.م (بعد عمولة %15)</div>
+                        <div className="text-[11px] text-ink/40">صافي ربحك: {Math.round(l.budget * 0.8)} ج.م (بعد عمولة %20)</div>
 
                         {l.myResponse ? (
                           <div className="rounded-2xl border border-sand bg-cream/50 p-3 text-right space-y-1 text-xs">
@@ -1997,12 +1997,12 @@ export default function TutorDashboardPage() {
                 <strong className="text-ink font-black">{acceptModalLead.budget} ج.م</strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-ink/60">عمولة المنصة (%15):</span>
-                <strong className="text-coral">-{Math.round(acceptModalLead.budget * 0.15)} ج.م</strong>
+                <span className="text-ink/60">عمولة المنصة (%20):</span>
+                <strong className="text-coral">-{Math.round(acceptModalLead.budget * 0.2)} ج.م</strong>
               </div>
               <div className="flex justify-between border-t border-sand pt-1.5 text-sm">
                 <span className="font-bold text-ink">صافي ربحك:</span>
-                <strong className="text-mint font-black">{Math.round(acceptModalLead.budget * 0.85)} ج.م</strong>
+                <strong className="text-mint font-black">{Math.round(acceptModalLead.budget * 0.8)} ج.م</strong>
               </div>
             </div>
 

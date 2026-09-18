@@ -222,7 +222,7 @@ export default function AdminDashboardPage() {
   });
 
   // Settings state
-  const [commissionPct, setCommissionPct] = useState(15);
+  const [commissionPct, setCommissionPct] = useState(20);
   const [inPersonSurcharge, setInPersonSurcharge] = useState(5);
   const [inPersonLocations, setInPersonLocations] = useState<InPersonLocation[]>([]);
   const [newLocForm, setNewLocForm] = useState({ name: "", address: "", details: "" });
@@ -547,7 +547,7 @@ export default function AdminDashboardPage() {
           setTotalCommission(invoicesData.totalCommission ?? 0);
         }
 
-        setCommissionPct(commission.commissionPercent ?? 15);
+        setCommissionPct(commission.commissionPercent ?? 20);
         setInPersonSurcharge(commission.inPersonSurchargePct ?? 5);
         if (commission.locations && Array.isArray(commission.locations)) {
           setInPersonLocations(commission.locations);
