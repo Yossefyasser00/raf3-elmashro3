@@ -22,16 +22,20 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+
+    if (!collegeCardFile) {
+      setError("كارنيه الكلية مطلوب — يرجى رفع صورة الكارنيه للمتابعة.");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const collegeCardDataUrl = collegeCardFile
-        ? await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result ?? ""));
-            reader.onerror = () => reject(new Error("failed to read college card"));
-            reader.readAsDataURL(collegeCardFile);
-          })
-        : null;
+      const collegeCardDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.onerror = () => reject(new Error("failed to read college card"));
+        reader.readAsDataURL(collegeCardFile);
+      });
 
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/auth/register`,
@@ -44,7 +48,7 @@ export default function RegisterPage() {
             phone,
             password,
             initialRole,
-            collegeCardFileName: collegeCardDataUrl ?? null,
+            collegeCardFileName: collegeCardDataUrl,
             gradeLevel: gradeLevel || null,
           }),
         },
@@ -174,12 +178,12 @@ export default function RegisterPage() {
 
           <div>
             <label htmlFor="college-card" className="mb-2 block text-sm font-bold text-ink dark:text-slate-200">
-              ارسل كارنيه الكلية
+              ارسل كارنيه الكلية <span className="text-coral">*</span>
             </label>
-            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-sand bg-cream p-3.5 transition hover:border-coral dark:border-slate-600 dark:bg-slate-900/60">
+            <label className={`flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed p-3.5 transition hover:border-coral dark:bg-slate-900/60 ${collegeCardFile ? "border-mint bg-mint/5" : "border-coral/60 bg-cream dark:border-coral/40"}`}>
               <span className="text-sm font-bold text-coral">اختر صورة</span>
               <span className="text-xs text-ink/60 dark:text-slate-300">
-                {collegeCardFile ? collegeCardFile.name : "لا توجد صورة محددة"}
+                {collegeCardFile ? collegeCardFile.name : "مطلوب — لا توجد صورة محددة"}
               </span>
               <input
                 id="college-card"
@@ -189,6 +193,9 @@ export default function RegisterPage() {
                 onChange={(e) => setCollegeCardFile(e.target.files?.[0] ?? null)}
               />
             </label>
+            {!collegeCardFile && (
+              <p className="mt-1 text-xs text-coral/80">⚠️ يجب رفع كارنيه الكلية لإتمام التسجيل</p>
+            )}
           </div>
 
           <div>
