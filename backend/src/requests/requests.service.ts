@@ -617,13 +617,20 @@ export class RequestsService {
     });
   }
 
-  // Complete Session -> gives +50 points to student
+  // Complete Session -> gives +50 points to student and updates tutor stats & earnings
   async completeSession(requestId: string, actorId: string) {
     const request = await this.prisma.request.findUnique({
       where: { id: requestId },
       include: { booking: true },
     });
     if (!request) throw new NotFoundException('Request not found');
+
+    if (
+      request.status === RequestStatus.COMPLETED ||
+      request.status === RequestStatus.STUDENT_RATED
+    ) {
+      return request;
+    }
 
     // Transition to COMPLETED
     await this.transition(
@@ -656,11 +663,23 @@ export class RequestsService {
       },
     });
 
-    // Update tutor stats if tutor is assigned
-    if (request.selectedTutorId) {
+    // Update payment status to PAID if booking exists
+    if (request.booking) {
+      await this.prisma.payment.updateMany({
+        where: { bookingId: request.booking.id },
+        data: { status: 'PAID' },
+      });
+    }
+
+    // Update tutor stats
+    const tutorProfileId = request.booking?.tutorId;
+    if (tutorProfileId) {
       await this.prisma.tutorProfile.updateMany({
-        where: { userId: request.selectedTutorId },
-        data: { completedSessionsCount: { increment: 1 } },
+        where: { id: tutorProfileId },
+        data: {
+          completedSessionsCount: { increment: 1 },
+          studentsHelpedCount: { increment: 1 },
+        },
       });
     }
 

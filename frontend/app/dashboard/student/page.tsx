@@ -242,7 +242,17 @@ export default function StudentDashboardPage() {
                     ? "مؤكدة"
                     : request.status === "TUTOR_SELECTED"
                       ? "تم اختيار مدرس وقبول العرض"
-                      : request.status,
+                      : request.status === "IN_PROGRESS"
+                        ? "جارية الآن 🔴"
+                        : request.status === "COMPLETED"
+                          ? "مكتملة 🎉"
+                          : request.status === "STUDENT_RATED"
+                            ? "تم التقييم بنجاح ⭐"
+                            : request.status === "CANCELLED"
+                              ? "ملغية"
+                              : request.status === "DISPUTED"
+                                ? "قيد النزاع ⚠️"
+                                : request.status,
             preferredTime: request.preferredAt
               ? new Date(request.preferredAt).toLocaleString("ar-EG")
               : "لم يتم تحديد موعد",
@@ -528,6 +538,46 @@ export default function StudentDashboardPage() {
     triggerToast("⚠️ تم تصعيد الشكوى لإدارة فك زنقة وسيتم التواصل معك وحفظ حقك المالي.");
     setDisputeReq(null);
     setDisputeReason("");
+  }
+
+  // Confirm Session Completion as Student
+  async function handleStudentCompleteSession(requestId: string) {
+    const token = localStorage.getItem("fz_token");
+    if (!token) return;
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/requests/${requestId}/complete`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message ?? "تعذر تأكيد إنهاء الحصة");
+      }
+
+      triggerToast("🎉 تم تأكيد إنهاء الحصة بنجاح وحصلت على +50 نقطة!");
+      const targetReq = requests.find((r) => r.id === requestId);
+      if (targetReq) {
+        setRatingReq(targetReq);
+      }
+      setPoints((p) => p + 50);
+      setRequests((prev) =>
+        prev.map((r) =>
+          r.id === requestId
+            ? { ...r, status: "COMPLETED", statusLabel: "مكتملة 🎉" }
+            : r
+        )
+      );
+    } catch (err: any) {
+      triggerToast(`⚠️ ${err.message || "حدث خطأ أثناء تأكيد إنهاء الحصة"}`);
+    }
   }
 
   // Send Message
@@ -1381,10 +1431,10 @@ export default function StudentDashboardPage() {
                 </div>
               ))}
 
-              {/* Confirmed sessions list */}
+              {/* Confirmed & Completed sessions list */}
               {(() => {
                 const sessionRequests = requests.filter(r =>
-                  ["CONFIRMED", "TUTOR_SELECTED", "IN_PROGRESS"].includes(r.status)
+                  ["CONFIRMED", "TUTOR_SELECTED", "IN_PROGRESS", "COMPLETED", "STUDENT_RATED"].includes(r.status)
                 );
 
                 if (sessionRequests.length === 0) {
@@ -1409,6 +1459,7 @@ export default function StudentDashboardPage() {
                       .sort((a, b) => a.preferredTime.localeCompare(b.preferredTime))
                       .map(req => {
                         const isLive = req.status === "IN_PROGRESS";
+                        const isDone = req.status === "COMPLETED" || req.status === "STUDENT_RATED";
                         const isOnline = req.mode === "ONLINE";
                         const tutorName = req.selectedTutor?.name ?? req.negotiations?.find(n => n.status === "ACCEPTED")?.tutorName ?? "المدرس";
 
@@ -1418,14 +1469,16 @@ export default function StudentDashboardPage() {
                             className={`rounded-3xl border p-5 shadow-sm flex flex-wrap items-center justify-between gap-4 ${
                               isLive
                                 ? "border-red-400 bg-red-50"
+                                : isDone
+                                ? "border-mint/30 bg-mint/5"
                                 : "border-sand bg-white"
                             }`}
                           >
                             <div className="flex items-center gap-4">
                               <div className={`flex h-14 w-14 items-center justify-center rounded-2xl text-xl shadow ${
-                                isLive ? "bg-red-500 text-white" : "bg-mint/15 text-mint"
+                                isLive ? "bg-red-500 text-white" : isDone ? "bg-mint text-white" : "bg-mint/15 text-mint"
                               }`}>
-                                {isLive ? "🔴" : isOnline ? "💻" : "🏫"}
+                                {isLive ? "🔴" : isDone ? "✓" : isOnline ? "💻" : "🏫"}
                               </div>
 
                               <div className="space-y-1">
@@ -1435,9 +1488,13 @@ export default function StudentDashboardPage() {
                                   </span>
                                   <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-black ${
                                     isLive ? "bg-red-500 text-white animate-pulse" :
+                                    req.status === "COMPLETED" ? "bg-mint/20 text-mint" :
+                                    req.status === "STUDENT_RATED" ? "bg-amber-100 text-amber-700" :
                                     req.status === "CONFIRMED" ? "bg-mint/15 text-mint" : "bg-lilac/15 text-indigo-600"
                                   }`}>
                                     {isLive ? "🔴 جارية الآن" :
+                                     req.status === "COMPLETED" ? "🎉 مكتملة" :
+                                     req.status === "STUDENT_RATED" ? "⭐ تم التقييم" :
                                      req.status === "CONFIRMED" ? "✅ مؤكدة" : "تم اختيار المدرس"}
                                   </span>
                                   <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
@@ -1464,7 +1521,22 @@ export default function StudentDashboardPage() {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {req.status === "COMPLETED" && (
+                                <button
+                                  onClick={() => setRatingReq(req)}
+                                  className="rounded-2xl bg-amber-500 px-5 py-2.5 text-xs font-black text-white hover:bg-amber-600 transition shadow-sm flex items-center gap-1.5"
+                                >
+                                  ⭐ قيّم المدرس (+20 نقطة)
+                                </button>
+                              )}
+
+                              {req.status === "STUDENT_RATED" && (
+                                <span className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-2.5 text-xs font-bold text-amber-700 flex items-center gap-1.5">
+                                  ⭐ تم تقييم الجلسة بنجاح
+                                </span>
+                              )}
+
                               {isOnline && (isLive || req.status === "CONFIRMED") && (
                                 <>
                                   {req.selectedTutor?.meetingUrl ? (
@@ -1498,15 +1570,21 @@ export default function StudentDashboardPage() {
                                       📋
                                     </button>
                                   )}
+                                  <button
+                                    onClick={() => handleStudentCompleteSession(req.id)}
+                                    className="rounded-2xl border border-sand bg-white px-4 py-2.5 text-xs font-bold text-ink hover:bg-sand transition"
+                                  >
+                                    إنهاء واستلام الشرح ✓
+                                  </button>
                                 </>
                               )}
-                              {isOnline && !isLive && req.status !== "CONFIRMED" && (
+                              {isOnline && !isLive && req.status !== "CONFIRMED" && !isDone && (
                                 <span className="rounded-2xl bg-ink/5 px-4 py-2.5 text-xs font-bold text-ink/50 flex items-center gap-2">
                                   <Clock className="h-3.5 w-3.5" />
                                   القاعة ستفتح عند تأكيد الموعد
                                 </span>
                               )}
-                              {!isOnline && (
+                              {!isOnline && !isDone && (
                                 <span className="rounded-2xl bg-orange-50 border border-orange-200 px-4 py-2.5 text-xs font-bold text-orange-600 flex items-center gap-2">
                                   📍 احضر في الموعد المحدد
                                 </span>

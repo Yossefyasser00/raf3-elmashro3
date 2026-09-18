@@ -294,18 +294,27 @@ export default function TutorDashboardPage() {
 
       const bookingsData = await bookingsResponse.json();
       setBookings(
-        bookingsData.map((booking: any): BookingItem => ({
-          id: booking.id,
-          requestId: booking.request?.id ?? booking.id,
-          date: booking.startsAt ? new Date(booking.startsAt).toLocaleString("ar-EG") : "غير محددة",
-          student: booking.request?.student?.fullName ?? "طالب",
-          phone: booking.request?.student?.phone ?? "",
-          subject: booking.request?.subject?.name ?? booking.request?.topic?.name ?? "مادة غير محددة",
-          mode: booking.teachingMode,
-          price: booking.priceEGP ?? 0,
-          status: "مؤكدة",
-          meetUrl: booking.tutor?.meetingUrl ?? booking.meetUrl ?? undefined,
-        })),
+        bookingsData.map((booking: any): BookingItem => {
+          const reqStatus = booking.request?.status;
+          let statusText: "مؤكدة" | "في انتظار الدفع" | "مكتملة" = "مؤكدة";
+          if (reqStatus === "COMPLETED" || reqStatus === "STUDENT_RATED") {
+            statusText = "مكتملة";
+          } else if (reqStatus === "PAYMENT_PENDING") {
+            statusText = "في انتظار الدفع";
+          }
+          return {
+            id: booking.id,
+            requestId: booking.request?.id ?? booking.id,
+            date: booking.startsAt ? new Date(booking.startsAt).toLocaleString("ar-EG") : "غير محددة",
+            student: booking.request?.student?.fullName ?? "طالب",
+            phone: booking.request?.student?.phone ?? "",
+            subject: booking.request?.subject?.name ?? booking.request?.topic?.name ?? "مادة غير محددة",
+            mode: booking.teachingMode,
+            price: booking.priceEGP ?? 0,
+            status: statusText,
+            meetUrl: booking.tutor?.meetingUrl ?? booking.meetUrl ?? undefined,
+          };
+        }),
       );
 
       if (payoutsResponse.status === 401 || payoutsResponse.status === 403) {
@@ -535,17 +544,41 @@ export default function TutorDashboardPage() {
     }
   }
 
-  // Complete Booking
-  function handleCompleteBooking(bookingId: string) {
-    setBookings((prev) =>
-      prev.map((b) => (b.id === bookingId ? { ...b, status: "مكتملة" } : b))
-    );
+  // Complete Booking (Call backend to persist status & credit earnings)
+  async function handleCompleteBooking(bookingId: string) {
     const b = bookings.find((x) => x.id === bookingId);
-    if (b) {
-      const earned = Math.round(b.price * 0.8); // minus 20% platform commission
+    if (!b) return;
+
+    const token = localStorage.getItem("fz_token");
+    if (!token) return;
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/requests/${b.requestId}/complete`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message ?? "تعذر إنهاء الجلسة");
+      }
+
+      setBookings((prev) =>
+        prev.map((item) => (item.id === bookingId ? { ...item, status: "مكتملة" } : item))
+      );
+      const earned = Math.round(b.price * 0.8);
       setClearedEarnings((c) => c + earned);
+      triggerToast("✅ تم إنهاء الجلسة بنجاح وتوثيقها كمكتملة وإيداع أرباحك الصافية في محفظتك!");
+      loadDashboardData();
+    } catch (err: any) {
+      triggerToast(`⚠️ ${err.message || "حدث خطأ أثناء إنهاء الجلسة"}`);
     }
-    triggerToast("✅ تم إنهاء الجلسة بنجاح وإيداع أرباحك الصافية في محفظتك!");
   }
 
   // Open Host Modal to start Google Meet
@@ -1240,6 +1273,28 @@ export default function TutorDashboardPage() {
                             </span>
                           )}
                         </>
+                      )}
+                      {b.status === "مكتملة" && (
+                        <button
+                          onClick={() => {
+                            const commission = Math.round(b.price * 0.2);
+                            const net = b.price - commission;
+                            printInvoice({
+                              invoiceNo: `INV-${b.id.slice(0, 8).toUpperCase()}`,
+                              type: "SESSION",
+                              subject: b.subject,
+                              studentName: b.student,
+                              amountEGP: b.price,
+                              commission,
+                              netEGP: net,
+                              date: b.date,
+                              status: "مكتملة ومسددة",
+                            });
+                          }}
+                          className="rounded-full bg-sand/60 px-4 py-2 text-xs font-bold text-ink hover:bg-sand transition flex items-center gap-1.5"
+                        >
+                          🖨️ الفاتورة
+                        </button>
                       )}
                     </div>
                   </div>
