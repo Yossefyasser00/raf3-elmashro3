@@ -145,6 +145,61 @@ function printInvoice(inv: {
   w.document.close();
 }
 
+function extractSubjectAndTopic(request: any) {
+  let subject = request?.subject?.name;
+  let topic = request?.topic?.name;
+  const desc = (request?.description || "").trim();
+
+  // 1. Extract subject if between [brackets] and not a location tag
+  if (!subject) {
+    const bracketMatches = [...desc.matchAll(/\[([^\]]+)\]/g)];
+    for (const match of bracketMatches) {
+      if (!match[1].startsWith("مكان الحضور")) {
+        subject = match[1].trim();
+        break;
+      }
+    }
+  }
+
+  // 2. Extract topic if between (parentheses)
+  if (!topic) {
+    const parenMatch = desc.match(/\(([^)]+)\)/);
+    if (parenMatch) {
+      topic = parenMatch[1].trim();
+    }
+  }
+
+  // 3. Clean remaining description
+  const cleanDesc = desc
+    .replace(/\[مكان الحضور المعتمد:[^\]]+\]/g, "")
+    .replace(/\[[^\]]+\]/g, "")
+    .replace(/\([^)]+\)/g, "")
+    .trim();
+
+  // 4. Fallbacks if still missing
+  if (!subject && !topic) {
+    if (cleanDesc) {
+      const parts = cleanDesc.split(/[-–—،,\n]/).map((p: string) => p.trim()).filter(Boolean);
+      if (parts.length > 1) {
+        subject = parts[0];
+        topic = parts[1];
+      } else if (parts.length === 1) {
+        subject = "مادة دراسية";
+        topic = parts[0].slice(0, 45);
+      }
+    }
+  }
+
+  const finalSubject = subject || "مادة دراسية";
+  const finalTopic = topic || (cleanDesc ? cleanDesc.slice(0, 40) : "جلسة مراجعة وشرح");
+
+  return {
+    subject: finalSubject,
+    topic: finalTopic,
+    fullTitle: `${finalSubject} — ${finalTopic}`,
+  };
+}
+
 export default function TutorDashboardPage() {
 
   const router = useRouter();
@@ -261,10 +316,11 @@ export default function TutorDashboardPage() {
       const leadsData = await leadsResponse.json();
       setLeads(leadsData.map((request: any): LeadItem => {
         const myNeg = (request.negotiations ?? [])[0] ?? null;
+        const { subject, topic } = extractSubjectAndTopic(request);
         return {
           id: request.id,
-          subject: request.subject?.name ?? "مادة غير محددة",
-          topic: request.topic?.name ?? "موضوع غير محدد",
+          subject,
+          topic,
           student: request.student?.fullName ?? "طالب",
           university: request.university?.name ?? "جامعة غير محددة",
           faculty: request.faculty?.name ?? "كلية غير محددة",
@@ -303,13 +359,14 @@ export default function TutorDashboardPage() {
           } else if (reqStatus === "PAYMENT_PENDING") {
             statusText = "في انتظار الدفع";
           }
+          const { fullTitle } = extractSubjectAndTopic(booking.request);
           return {
             id: booking.id,
             requestId: booking.request?.id ?? booking.id,
             date: booking.startsAt ? new Date(booking.startsAt).toLocaleString("ar-EG") : "غير محددة",
             student: booking.request?.student?.fullName ?? "طالب",
             phone: booking.request?.student?.phone ?? "",
-            subject: booking.request?.subject?.name ?? booking.request?.topic?.name ?? "مادة غير محددة",
+            subject: fullTitle,
             mode: booking.teachingMode,
             price: booking.priceEGP ?? 0,
             status: statusText,

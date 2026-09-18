@@ -84,9 +84,13 @@ export default function NewRequestPage() {
       const chosenLocation = mode === "IN_PERSON" ? locations.find(l => l.id === selectedLocationId) : null;
       const locationText = chosenLocation ? `[مكان الحضور المعتمد: ${chosenLocation.name} — ${chosenLocation.address}] ` : "";
 
+      const actualSubject = selectedSubject === "مادة أخرى" ? (customSubject || "مادة دراسية") : selectedSubject;
+      const cleanTopic = topic.trim();
+      const fullDescription = `${locationText}[${actualSubject}] (${cleanTopic}) ${description}`;
+
       // POST /api/v1/requests
       const reqPayload = {
-        description: `${locationText}(${topic}) ${description}`,
+        description: fullDescription,
         teachingMode: mode,
         budgetEGP: budget,
         urgency: urgency,

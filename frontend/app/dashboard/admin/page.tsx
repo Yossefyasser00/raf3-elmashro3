@@ -467,24 +467,78 @@ export default function AdminDashboardPage() {
           submittedAt: new Date(application.createdAt).toLocaleString("ar-EG"),
         })));
 
-        setRequests(allRequests.map((request: any): StudentReq => ({
-          id: request.id,
-          studentName: request.student?.fullName ?? "طالب غير معروف",
-          studentEmail: request.student?.email ?? "",
-          university: request.university?.name ?? "غير محددة",
-          faculty: request.faculty?.name ?? "غير محددة",
-          subject: request.subject?.name ?? "مادة غير محددة",
-          topic: request.topic?.name ?? "موضوع غير محدد",
-          description: request.description,
-          mode: request.teachingMode,
-          budget: request.budgetEGP ?? 0,
-          urgency: request.urgency,
-          status: request.status,
-          selectedTutor: request.booking?.tutor?.user?.fullName,
-          createdAt: new Date(request.createdAt).toLocaleString("ar-EG"),
-          paymentSenderAccount: request.paymentSenderAccount ?? null,
-          paymentMethodUsed: request.paymentMethodUsed ?? null,
-        })));
+function extractSubjectAndTopic(request: any) {
+  let subject = request?.subject?.name;
+  let topic = request?.topic?.name;
+  const desc = (request?.description || "").trim();
+
+  // 1. Extract subject if between [brackets] and not a location tag
+  if (!subject) {
+    const bracketMatches = [...desc.matchAll(/\[([^\]]+)\]/g)];
+    for (const match of bracketMatches) {
+      if (!match[1].startsWith("مكان الحضور")) {
+        subject = match[1].trim();
+        break;
+      }
+    }
+  }
+
+  // 2. Extract topic if between (parentheses)
+  if (!topic) {
+    const parenMatch = desc.match(/\(([^)]+)\)/);
+    if (parenMatch) {
+      topic = parenMatch[1].trim();
+    }
+  }
+
+  // 3. Clean remaining description
+  const cleanDesc = desc
+    .replace(/\[مكان الحضور المعتمد:[^\]]+\]/g, "")
+    .replace(/\[[^\]]+\]/g, "")
+    .replace(/\([^)]+\)/g, "")
+    .trim();
+
+  // 4. Fallbacks if still missing
+  if (!subject && !topic) {
+    if (cleanDesc) {
+      const parts = cleanDesc.split(/[-–—،,\n]/).map((p: string) => p.trim()).filter(Boolean);
+      if (parts.length > 1) {
+        subject = parts[0];
+        topic = parts[1];
+      } else if (parts.length === 1) {
+        subject = "مادة دراسية";
+        topic = parts[0].slice(0, 45);
+      }
+    }
+  }
+
+  return {
+    subject: subject || "مادة دراسية",
+    topic: topic || (cleanDesc ? cleanDesc.slice(0, 40) : "جلسة مراجعة وشرح"),
+  };
+}
+
+        setRequests(allRequests.map((request: any): StudentReq => {
+          const { subject, topic } = extractSubjectAndTopic(request);
+          return {
+            id: request.id,
+            studentName: request.student?.fullName ?? "طالب غير معروف",
+            studentEmail: request.student?.email ?? "",
+            university: request.university?.name ?? "غير محددة",
+            faculty: request.faculty?.name ?? "غير محددة",
+            subject,
+            topic,
+            description: request.description,
+            mode: request.teachingMode,
+            budget: request.budgetEGP ?? 0,
+            urgency: request.urgency,
+            status: request.status,
+            selectedTutor: request.booking?.tutor?.user?.fullName,
+            createdAt: new Date(request.createdAt).toLocaleString("ar-EG"),
+            paymentSenderAccount: request.paymentSenderAccount ?? null,
+            paymentMethodUsed: request.paymentMethodUsed ?? null,
+          };
+        }));
 
         setUsers(allUsers.map((user: any): UserItem => {
           const roles = user.roles?.map((item: any) => item.role) ?? [];

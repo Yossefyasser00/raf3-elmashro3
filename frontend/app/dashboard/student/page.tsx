@@ -155,6 +155,57 @@ function printInvoice(inv: {
   w.document.close();
 }
 
+function extractSubjectAndTopic(request: any) {
+  let subject = request?.subject?.name;
+  let topic = request?.topic?.name;
+  const desc = (request?.description || "").trim();
+
+  // 1. Extract subject if between [brackets] and not a location tag
+  if (!subject) {
+    const bracketMatches = [...desc.matchAll(/\[([^\]]+)\]/g)];
+    for (const match of bracketMatches) {
+      if (!match[1].startsWith("مكان الحضور")) {
+        subject = match[1].trim();
+        break;
+      }
+    }
+  }
+
+  // 2. Extract topic if between (parentheses)
+  if (!topic) {
+    const parenMatch = desc.match(/\(([^)]+)\)/);
+    if (parenMatch) {
+      topic = parenMatch[1].trim();
+    }
+  }
+
+  // 3. Clean remaining description
+  const cleanDesc = desc
+    .replace(/\[مكان الحضور المعتمد:[^\]]+\]/g, "")
+    .replace(/\[[^\]]+\]/g, "")
+    .replace(/\([^)]+\)/g, "")
+    .trim();
+
+  // 4. Fallbacks if still missing
+  if (!subject && !topic) {
+    if (cleanDesc) {
+      const parts = cleanDesc.split(/[-–—،,\n]/).map((p: string) => p.trim()).filter(Boolean);
+      if (parts.length > 1) {
+        subject = parts[0];
+        topic = parts[1];
+      } else if (parts.length === 1) {
+        subject = "مادة دراسية";
+        topic = parts[0].slice(0, 45);
+      }
+    }
+  }
+
+  return {
+    subject: subject || "مادة دراسية",
+    topic: topic || (cleanDesc ? cleanDesc.slice(0, 40) : "جلسة مراجعة وشرح"),
+  };
+}
+
 export default function StudentDashboardPage() {
   const router = useRouter();
   const [activeNav, setActiveNav] = useState<
@@ -224,15 +275,17 @@ export default function StudentDashboardPage() {
 
         const data = await response.json();
         setRequests(
-          data.map((request: any): RequestItem => ({
-            id: request.id,
-            subject: request.subject?.name ?? "طلب أكاديمي",
-            topic: request.topic?.name ?? "موضوع غير محدد",
-            description: request.description,
-            mode: request.teachingMode,
-            budget: request.budgetEGP ?? 0,
-            urgency: request.urgency ?? "MEDIUM",
-            status: request.status,
+          data.map((request: any): RequestItem => {
+            const { subject, topic } = extractSubjectAndTopic(request);
+            return {
+              id: request.id,
+              subject,
+              topic,
+              description: request.description,
+              mode: request.teachingMode,
+              budget: request.budgetEGP ?? 0,
+              urgency: request.urgency ?? "MEDIUM",
+              status: request.status,
             statusLabel:
               request.status === "MATCHING"
                 ? "جاري ترشيح المدرسين"
