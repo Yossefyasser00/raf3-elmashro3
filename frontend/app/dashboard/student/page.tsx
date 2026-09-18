@@ -347,8 +347,9 @@ export default function StudentDashboardPage() {
               rating: request.matches?.find((m: any) => m.tutorId === request.selectedTutorId)?.tutor?.ratingAvg ?? 5.0,
               meetingUrl: request.matches?.find((m: any) => m.tutorId === request.selectedTutorId)?.tutor?.meetingUrl ?? undefined,
             } : undefined,
-          })),
-        );
+          };
+        }),
+      );
 
         // Fetch Live Points Balance
         const pointsRes = await fetch(
