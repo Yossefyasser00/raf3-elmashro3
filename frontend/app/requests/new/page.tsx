@@ -135,11 +135,11 @@ export default function NewRequestPage() {
   }
 
   return (
-    <main className="min-h-screen bg-cream px-4 py-10 sm:px-6 lg:px-8 font-arabic">
+    <main className="min-h-screen bg-cream dark:bg-[#0B0F19] px-4 py-10 sm:px-6 lg:px-8 font-arabic transition-colors">
       <div className="mx-auto max-w-3xl space-y-6">
         <Link
           href="/dashboard/student"
-          className="inline-flex items-center gap-2 text-xs font-bold text-ink/60 hover:text-coral transition"
+          className="inline-flex items-center gap-2 text-xs font-bold text-ink/60 dark:text-slate-300 hover:text-coral transition"
         >
           <ArrowLeft className="h-4 w-4" />
           العودة للوحة تحكم الطالب
@@ -150,33 +150,33 @@ export default function NewRequestPage() {
             <span className="rounded-full bg-coral/15 px-3 py-1 text-xs font-black text-coral">
               نموذج الاستغاثة الأكاديمية 🚨
             </span>
-            <h1 className="mt-2 text-3xl font-black text-ink">قولنا إيه اللي مزنقك بالضبط؟</h1>
-            <p className="mt-1 text-xs sm:text-sm text-ink/60">
+            <h1 className="mt-2 text-3xl font-black text-ink dark:text-slate-100">قولنا إيه اللي مزنقك بالضبط؟</h1>
+            <p className="mt-1 text-xs sm:text-sm text-ink/60 dark:text-slate-400">
               هنحلل مشكلتك ونرشحلك أفضل 3 مدرسين متخصصين في تخصصك خلال دقائق.
             </p>
           </div>
         </div>
 
         {success ? (
-          <div className="rounded-3xl border border-mint/40 bg-white p-10 text-center space-y-4 shadow-xl animate-in zoom-in-95">
+          <div className="rounded-3xl border border-mint/40 bg-white dark:bg-slate-800 p-10 text-center space-y-4 shadow-xl animate-in zoom-in-95">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-mint/20 text-3xl text-mint">
               🎉
             </div>
-            <h2 className="text-2xl font-black text-ink">تم نشر زنقتك وبدء المطابقة!</h2>
-            <p className="text-sm text-ink/60 max-w-md mx-auto">
+            <h2 className="text-2xl font-black text-ink dark:text-slate-100">تم نشر زنقتك وبدء المطابقة!</h2>
+            <p className="text-sm text-ink/60 dark:text-slate-400 max-w-md mx-auto">
               جاري توجيهك إلى لوحة التحكم لاختيار المدرس من بين أفضل 3 مرشحين متاحين الآن...
             </p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6 rounded-3xl border border-sand bg-white p-6 sm:p-8 shadow-sm">
+          <form onSubmit={handleSubmit} className="space-y-6 rounded-3xl border border-sand dark:border-slate-700 bg-white dark:bg-slate-800/80 p-6 sm:p-8 shadow-sm">
             {/* University & Faculty */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-xs font-bold text-ink mb-1.5">الجامعة</label>
+                <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">الجامعة</label>
                 <select
                   value={university}
                   onChange={(e) => setUniversity(e.target.value)}
-                  className="w-full rounded-2xl border border-sand p-3.5 text-xs font-bold text-ink outline-none focus:border-coral"
+                  className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-3.5 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral dark:focus:border-coral"
                 >
                   {UNIVERSITIES.map((u) => (
                     <option key={u} value={u}>{u}</option>
@@ -185,21 +185,21 @@ export default function NewRequestPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-ink mb-1.5">الكلية أو القسم</label>
+                <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">الكلية أو القسم</label>
                 <input
                   type="text"
                   required
                   placeholder="مثال: كلية العلوم — قسم الكيمياء"
                   value={faculty}
                   onChange={(e) => setFaculty(e.target.value)}
-                  className="w-full rounded-2xl border border-sand p-3.5 text-xs font-bold text-ink outline-none focus:border-coral"
+                  className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-3.5 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral dark:placeholder:text-slate-500"
                 />
               </div>
             </div>
 
             {/* Subject Picker */}
             <div>
-              <label className="block text-xs font-bold text-ink mb-2">المادة الدراسية</label>
+              <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-2">المادة الدراسية</label>
               <div className="flex flex-wrap gap-2">
                 {SUBJECTS.map((s) => (
                   <button
@@ -210,7 +210,7 @@ export default function NewRequestPage() {
                       "rounded-full px-4 py-2 text-xs font-bold transition " +
                       (selectedSubject === s
                         ? "bg-coral text-white shadow-md shadow-coral/25"
-                        : "border border-sand bg-white text-ink/70 hover:bg-cream")
+                        : "border border-sand dark:border-slate-600 bg-white dark:bg-slate-700 text-ink/70 dark:text-slate-300 hover:bg-cream dark:hover:bg-slate-600")
                     }
                   >
                     {s}
@@ -224,14 +224,14 @@ export default function NewRequestPage() {
                   placeholder="اكتب اسم المادة..."
                   value={customSubject}
                   onChange={(e) => setCustomSubject(e.target.value)}
-                  className="mt-3 w-full rounded-2xl border border-sand p-3.5 text-xs font-bold outline-none focus:border-coral"
+                  className="mt-3 w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-3.5 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral dark:placeholder:text-slate-500"
                 />
               )}
             </div>
 
             {/* Topic & Specific problem */}
             <div>
-              <label className="block text-xs font-bold text-ink mb-1.5">
+              <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">
                 اسم الشابتر / الموضوع بالظبط
               </label>
               <input
@@ -240,12 +240,12 @@ export default function NewRequestPage() {
                 placeholder="مثال: تفاعلات الألكينات وميكانيكية الرنين، أو شيت 3 كيرشوف"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                className="w-full rounded-2xl border border-sand p-3.5 text-xs font-bold text-ink outline-none focus:border-coral"
+                className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-3.5 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral dark:placeholder:text-slate-500"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-ink mb-1.5">
+              <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">
                 احكيلنا المشكلة بالتفصيل ومحتاج إيه من المدرس
               </label>
               <textarea
@@ -255,14 +255,14 @@ export default function NewRequestPage() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="مثال: عندي امتحان ميدتيرم بعد بكره، مش فاهم المسائل رقم 4 و 7 في الشيت ومحتاج المدرس يحلها معايا خطوة بخطوة ويوضح الفكرة."
-                className="w-full rounded-2xl border border-sand p-4 text-xs font-semibold text-ink leading-relaxed outline-none focus:border-coral"
+                className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-4 text-xs font-semibold text-ink dark:text-slate-100 leading-relaxed outline-none focus:border-coral dark:placeholder:text-slate-500"
               />
             </div>
 
             {/* Teaching Mode & Urgency */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-xs font-bold text-ink mb-1.5">نمط الشرح المفضل</label>
+                <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">نمط الشرح المفضل</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -271,7 +271,7 @@ export default function NewRequestPage() {
                       "flex items-center justify-center gap-2 rounded-2xl border p-3 text-xs font-bold transition " +
                       (mode === "ONLINE"
                         ? "border-coral bg-coral/10 text-coral font-black"
-                        : "border-sand text-ink/70 hover:bg-cream")
+                        : "border-sand dark:border-slate-600 bg-white dark:bg-slate-700 text-ink/70 dark:text-slate-300 hover:bg-cream dark:hover:bg-slate-600")
                     }
                   >
                     <Video className="h-4 w-4" />
@@ -285,7 +285,7 @@ export default function NewRequestPage() {
                       "flex items-center justify-center gap-2 rounded-2xl border p-3 text-xs font-bold transition " +
                       (mode === "IN_PERSON"
                         ? "border-coral bg-coral/10 text-coral font-black"
-                        : "border-sand text-ink/70 hover:bg-cream")
+                        : "border-sand dark:border-slate-600 bg-white dark:bg-slate-700 text-ink/70 dark:text-slate-300 hover:bg-cream dark:hover:bg-slate-600")
                     }
                   >
                     <MapPin className="h-4 w-4" />
@@ -296,9 +296,9 @@ export default function NewRequestPage() {
 
               {/* In-Person Approved Locations Selection */}
               {mode === "IN_PERSON" && (
-                <div className="sm:col-span-2 rounded-3xl border border-coral/30 bg-coral/5 p-4 sm:p-5 space-y-3">
+                <div className="sm:col-span-2 rounded-3xl border border-coral/30 bg-coral/5 dark:bg-coral/10 dark:border-coral/20 p-4 sm:p-5 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-coral/15 pb-2.5">
-                    <label className="text-xs font-black text-ink flex items-center gap-2">
+                    <label className="text-xs font-black text-ink dark:text-slate-200 flex items-center gap-2">
                       <MapPin className="h-4 w-4 text-coral" />
                       <span>اختر مكان الحضور المعتمد من إدارة المنصة:</span>
                     </label>
@@ -306,7 +306,7 @@ export default function NewRequestPage() {
                       أماكن آمنة ومجهزة 🏫
                     </span>
                   </div>
-                  <p className="text-[11px] text-ink/70 leading-relaxed">
+                  <p className="text-[11px] text-ink/70 dark:text-slate-400 leading-relaxed">
                     حرصاً على أمان الطلاب وجودة التجربة، تتم اللقاءات الحضورية حصراً داخل هذه الأماكن المعتمدة والمكيفة:
                   </p>
                   <div className="grid gap-2.5 sm:grid-cols-2">
@@ -319,20 +319,20 @@ export default function NewRequestPage() {
                           onClick={() => setSelectedLocationId(loc.id)}
                           className={`rounded-2xl border p-3 text-right transition flex items-start gap-3 ${
                             isSelected
-                              ? "border-coral bg-white shadow-md shadow-coral/10 ring-2 ring-coral/30"
-                              : "border-sand/70 bg-white/80 hover:bg-white hover:border-sand"
+                              ? "border-coral bg-white dark:bg-slate-700 shadow-md shadow-coral/10 ring-2 ring-coral/30"
+                              : "border-sand/70 dark:border-slate-600 bg-white/80 dark:bg-slate-700/60 hover:bg-white dark:hover:bg-slate-700 hover:border-sand"
                           }`}
                         >
                           <div className={`mt-0.5 h-4 w-4 rounded-full border flex items-center justify-center shrink-0 ${
-                            isSelected ? "border-coral bg-coral text-white" : "border-sand bg-cream"
+                            isSelected ? "border-coral bg-coral text-white" : "border-sand dark:border-slate-500 bg-cream dark:bg-slate-600"
                           }`}>
                             {isSelected && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
                           </div>
                           <div className="space-y-1 min-w-0 flex-1">
-                            <div className="text-xs font-black text-ink">{loc.name}</div>
-                            <div className="text-[11px] text-ink/70 font-semibold">📍 {loc.address}</div>
+                            <div className="text-xs font-black text-ink dark:text-slate-100">{loc.name}</div>
+                            <div className="text-[11px] text-ink/70 dark:text-slate-400 font-semibold">📍 {loc.address}</div>
                             {loc.details && (
-                              <div className="text-[10px] text-ink/50">💡 {loc.details}</div>
+                              <div className="text-[10px] text-ink/50 dark:text-slate-500">💡 {loc.details}</div>
                             )}
                           </div>
                         </button>
@@ -343,7 +343,7 @@ export default function NewRequestPage() {
               )}
 
               <div>
-                <label className="block text-xs font-bold text-ink mb-1.5">مستوى العجلة والوقت</label>
+                <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">مستوى العجلة والوقت</label>
                 <div className="grid grid-cols-4 gap-1.5">
                   {[
                     { id: "LOW", label: "هادي" },
@@ -359,7 +359,7 @@ export default function NewRequestPage() {
                         "rounded-xl border py-3 text-center text-xs font-bold transition " +
                         (urgency === u.id
                           ? "border-coral bg-coral text-white font-black shadow-sm"
-                          : "border-sand text-ink/70 hover:bg-cream")
+                          : "border-sand dark:border-slate-600 bg-white dark:bg-slate-700 text-ink/70 dark:text-slate-300 hover:bg-cream dark:hover:bg-slate-600")
                       }
                     >
                       {u.label}
@@ -373,17 +373,17 @@ export default function NewRequestPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label htmlFor="preferred-time-input" className="text-xs font-bold text-ink">
+                  <label htmlFor="preferred-time-input" className="text-xs font-bold text-ink dark:text-slate-200">
                     ⏰ موعد الحصة المطلوب
                   </label>
-                  <span className="text-[11px] text-ink/50">اختياري أو حدد بدقة</span>
+                  <span className="text-[11px] text-ink/50 dark:text-slate-400">اختياري أو حدد بدقة</span>
                 </div>
                 <input
                   id="preferred-time-input"
                   type="datetime-local"
                   value={preferredDateTime}
                   onChange={(e) => setPreferredDateTime(e.target.value)}
-                  className="w-full rounded-2xl border border-sand p-3.5 text-xs font-bold text-ink outline-none focus:border-coral bg-white"
+                  className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-3.5 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral"
                 />
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {[
@@ -403,7 +403,7 @@ export default function NewRequestPage() {
                       key={idx}
                       type="button"
                       onClick={() => setPreferredDateTime(preset.getVal())}
-                      className="rounded-lg bg-sand/30 hover:bg-sand/60 px-2.5 py-1 text-[11px] font-semibold text-ink/70 transition"
+                      className="rounded-lg bg-sand/30 dark:bg-slate-700 hover:bg-sand/60 dark:hover:bg-slate-600 px-2.5 py-1 text-[11px] font-semibold text-ink/70 dark:text-slate-300 transition"
                     >
                       {preset.label}
                     </button>
@@ -413,7 +413,7 @@ export default function NewRequestPage() {
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label htmlFor="budget-input" className="text-xs font-bold text-ink">
+                  <label htmlFor="budget-input" className="text-xs font-bold text-ink dark:text-slate-200">
                     💰 سعرك المقترح للحصة (ج.م)
                   </label>
                   <span className="text-[11px] text-mint font-bold">يمكن للمدرس الموافقة أو التفاوض</span>
@@ -427,9 +427,9 @@ export default function NewRequestPage() {
                   value={budget}
                   onChange={(e) => setBudget(Number(e.target.value) || 0)}
                   placeholder="مثال: 200"
-                  className="w-full rounded-2xl border border-sand p-3.5 text-xs font-bold outline-none focus:border-coral"
+                  className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-3.5 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral dark:placeholder:text-slate-500"
                 />
-                <p className="text-[11px] text-ink/50 mt-2">
+                <p className="text-[11px] text-ink/50 dark:text-slate-400 mt-2">
                   المدرسون سيشاهدون هذا السعر والميعاد في رادار الطلبات ويمكنهم قبوله فوراً.
                 </p>
               </div>
