@@ -803,65 +803,108 @@ export default function AdminDashboardPage() {
   }
 
   // Teacher application actions
-  function handleAcceptTeacher(appId: string) {
-    setApps((prev) =>
-      prev.map((a) =>
-        a.id === appId
-          ? { ...a, status: "ACCEPTED", statusLabel: "مقبول ومعتمد" }
-          : a
-      )
-    );
-    // Grant role in users state if exists
-    const app = apps.find((a) => a.id === appId);
-    if (app) {
-      setUsers((prev) => {
-        const found = prev.find((u) => u.email === app.email);
-        if (found) {
-          return prev.map((u) => (u.id === found.id ? { ...u, role: "TUTOR" } : u));
-        } else {
-          return [
-            ...prev,
-            {
-              id: `USR-${Date.now().toString().slice(-3)}`,
-              name: app.name,
-              email: app.email,
-              phone: app.phone,
-              role: "TUTOR",
-              isActive: true,
-              joinedAt: new Date().toISOString().slice(0, 10),
-            },
-          ];
+  async function handleAcceptTeacher(appId: string) {
+    const token = localStorage.getItem("fz_token");
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/admin/tutor-applications/${appId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: "ACCEPTED" }),
         }
-      });
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message ?? "تعذر اعتماد المعلم");
+      }
+
+      setApps((prev) =>
+        prev.map((a) =>
+          a.id === appId
+            ? { ...a, status: "ACCEPTED", statusLabel: "مقبول ومعتمد" }
+            : a
+        )
+      );
+      triggerToast(`✅ تم قبول المدرس وتفعيل حسابه ومنحه رول TUTOR بنجاح!`);
+      setSelectedApp(null);
+      loadDashboardData();
+    } catch (err: any) {
+      triggerToast(`⚠️ ${err.message || "حدث خطأ أثناء قبول المدرس"}`);
     }
-    triggerToast(`✅ تم قبول المدرس وتفعيل حسابه ومنحه رول TUTOR بنجاح!`);
-    setSelectedApp(null);
   }
 
-  function handleRejectTeacher(appId: string, reason: string) {
-    setApps((prev) =>
-      prev.map((a) =>
-        a.id === appId
-          ? { ...a, status: "REJECTED", statusLabel: `مرفوض: ${reason || "عدم استيفاء الشروط"}` }
-          : a
-      )
-    );
-    triggerToast(`❌ تم رفض طلب الانضمام وإرسال الملاحظات للمتقدم.`);
-    setRejectionModalApp(null);
-    setRejectionReason("");
-    setSelectedApp(null);
+  async function handleRejectTeacher(appId: string, reason: string) {
+    const token = localStorage.getItem("fz_token");
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/admin/tutor-applications/${appId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: "REJECTED", adminNotes: reason }),
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message ?? "تعذر رفض الطلب");
+      }
+
+      setApps((prev) =>
+        prev.map((a) =>
+          a.id === appId
+            ? { ...a, status: "REJECTED", statusLabel: `مرفوض: ${reason || "عدم استيفاء الشروط"}` }
+            : a
+        )
+      );
+      triggerToast(`❌ تم رفض طلب الانضمام وتحديث الحالة.`);
+      setRejectionModalApp(null);
+      setRejectionReason("");
+      setSelectedApp(null);
+      loadDashboardData();
+    } catch (err: any) {
+      triggerToast(`⚠️ ${err.message || "حدث خطأ أثناء رفض الطلب"}`);
+    }
   }
 
-  function handleRequestChanges(appId: string) {
-    setApps((prev) =>
-      prev.map((a) =>
-        a.id === appId
-          ? { ...a, status: "CHANGES_REQUESTED", statusLabel: "مطلوب تعديلات وإثبات إضافي" }
-          : a
-      )
-    );
-    triggerToast(`⚠️ تم إرسال إشعار للمدرس لطلب تعديل وتوضيح مستندات الخبرة.`);
-    setSelectedApp(null);
+  async function handleRequestChanges(appId: string) {
+    const token = localStorage.getItem("fz_token");
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/admin/tutor-applications/${appId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: "CHANGES_REQUESTED", adminNotes: "يرجى استكمال البيانات وإثبات الخبرة" }),
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message ?? "تعذر طلب التعديل");
+      }
+
+      setApps((prev) =>
+        prev.map((a) =>
+          a.id === appId
+            ? { ...a, status: "CHANGES_REQUESTED", statusLabel: "مطلوب تعديلات وإثبات إضافي" }
+            : a
+        )
+      );
+      triggerToast(`⚠️ تم إرسال إشعار للمدرس لطلب تعديل وتوضيح مستندات الخبرة.`);
+      setSelectedApp(null);
+      loadDashboardData();
+    } catch (err: any) {
+      triggerToast(`⚠️ ${err.message || "حدث خطأ"}`);
+    }
   }
 
   // Request status override

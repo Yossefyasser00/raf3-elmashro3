@@ -193,6 +193,7 @@ export default function TutorDashboardPage() {
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
   const [newSubjectName, setNewSubjectName] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [tutorIsVerified, setTutorIsVerified] = useState<boolean>(true);
 
   // Host Meet Modal State
   const [startMeetModalBooking, setStartMeetModalBooking] = useState<BookingItem | null>(null);
@@ -384,6 +385,7 @@ export default function TutorDashboardPage() {
         setTutorPriceMax(profile.priceMaxEGP || 450);
         setTutorTeachingMode(profile.teachingMode || "BOTH");
         setTutorRatingAvg(profile.ratingAvg || 5.0);
+        setTutorIsVerified(Boolean(profile.isVerified));
         const userSubs = profile.subjects?.map((s: any) => s.subject?.name).filter(Boolean) || [];
         setMySubjects(userSubs);
         setAvailableSubjects(allSubjects?.map((s: any) => s.name).filter(Boolean) || []);
@@ -913,6 +915,21 @@ export default function TutorDashboardPage() {
           ======================================================== */}
           {activeTab === "overview" && (
             <div className="space-y-6">
+              {!tutorIsVerified && (
+                <div className="rounded-3xl border-2 border-amber-400 bg-amber-50 p-6 text-amber-950 shadow-sm flex items-center gap-4 animate-pulse-slow">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-white text-3xl shadow">
+                    ⏳
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-black text-amber-950">
+                      حسابك قيد المراجعة والاعتماد من قبل إدارة المنصة (PENDING)
+                    </h3>
+                    <p className="text-xs text-amber-800 font-medium">
+                      تم استلام طلبك بنجاح وجاري مراجعته من قبل المشرفين. ستتمكن من استقبال طلبات الطلاب والتفاوض وبدء الحصص فور موافقة الإدارة على حسابك.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-sand bg-white p-6 shadow-sm">
                 <div>
                   <span className="rounded-full bg-mint/15 px-3 py-1 text-xs font-black text-mint">
@@ -1146,6 +1163,10 @@ export default function TutorDashboardPage() {
                             >
                               تعديل عرض التفاوض ✍️
                             </button>
+                          </div>
+                        ) : !tutorIsVerified ? (
+                          <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3 text-right text-xs font-bold text-amber-800 shadow-sm">
+                            🔒 حسابك قيد مراجعة واعتماد الإدارة — ستتمكن من الرد وقبول الحصص فور اعتماد حسابك.
                           </div>
                         ) : l.status === "OPEN" ? (
                           <div className="space-y-2 pt-1">

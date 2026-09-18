@@ -8,6 +8,7 @@ import {
   Prisma,
   RequestStatus,
   RoleName,
+  TeachingMode,
   TutorApplicationStatus,
   WorkshopStatus,
   WorkshopType,
@@ -90,6 +91,28 @@ export class AdminService {
   // 2. TEACHER APPLICATIONS (ACCEPT / REJECT / REQUEST CHANGES)
   // ------------------------------------------------------------
   async getTutorApplications(status?: TutorApplicationStatus) {
+    // 1. Auto-discover all users with TUTOR role or tutorProfile who don't have an application record yet
+    const tutorsWithoutApp = await this.prisma.user.findMany({
+      where: {
+        roles: { some: { role: RoleName.TUTOR } },
+        tutorApplications: { none: {} },
+      },
+      include: { tutorProfile: true },
+    });
+
+    for (const u of tutorsWithoutApp) {
+      await this.prisma.tutorApplication.create({
+        data: {
+          userId: u.id,
+          universityName: 'جامعة المنصورة',
+          facultyName: 'كلية الهندسة / العلوم',
+          experienceSummary: u.tutorProfile?.bio ?? 'طلب انضمام مسجل كمدرس',
+          preferredMode: u.tutorProfile?.teachingMode ?? TeachingMode.BOTH,
+          status: u.tutorProfile?.isVerified ? TutorApplicationStatus.ACCEPTED : TutorApplicationStatus.PENDING,
+        },
+      });
+    }
+
     return this.prisma.tutorApplication.findMany({
       where: status ? { status } : undefined,
       include: {

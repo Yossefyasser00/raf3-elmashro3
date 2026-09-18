@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Prisma } from '@prisma/client';
+import { Prisma, TeachingMode, TutorApplicationStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../config/prisma.service';
@@ -53,10 +53,19 @@ export class AuthService {
               ? {
                   tutorProfile: {
                     create: {
-                      bio: 'مدرس معتمد على منصة فك زنقة',
-                      isVerified: true,
-                      rankingScore: 85,
+                      bio: dto.gradeLevel || 'مدرس مسجل بانتظار اعتماد الإدارة',
+                      isVerified: false,
+                      rankingScore: 80,
                       ratingAvg: 5.0,
+                    },
+                  },
+                  tutorApplications: {
+                    create: {
+                      universityName: 'جامعة المنصورة',
+                      facultyName: 'كلية الهندسة / العلوم',
+                      experienceSummary: dto.gradeLevel || 'طلب انضمام جديد كمدرس',
+                      preferredMode: TeachingMode.BOTH,
+                      status: TutorApplicationStatus.PENDING,
                     },
                   },
                 }
