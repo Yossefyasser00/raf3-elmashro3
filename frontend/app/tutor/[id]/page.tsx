@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
   Star,
   ShieldCheck,
@@ -75,7 +75,6 @@ interface TutorProfileData {
 
 export default function TutorPublicProfilePage() {
   const params = useParams();
-  const router = useRouter();
   const tutorId = params?.id as string;
 
   const [tutor, setTutor] = useState<TutorProfileData | null>(null);
@@ -112,15 +111,6 @@ export default function TutorPublicProfilePage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     }
-  }
-
-  function handleRequestSession() {
-    const token = typeof window !== "undefined" ? localStorage.getItem("fz_token") : null;
-    if (!token) {
-      router.push(`/login?redirect=/tutor/${tutorId}`);
-      return;
-    }
-    router.push(`/dashboard/student?selectedTutor=${tutorId}`);
   }
 
   if (loading) {
@@ -579,15 +569,7 @@ export default function TutorPublicProfilePage() {
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="space-y-2.5 pt-2">
-                <button
-                  onClick={handleRequestSession}
-                  className="w-full rounded-2xl bg-coral p-3.5 text-center text-sm font-black text-white shadow-lg shadow-coral/30 hover:bg-coralDark transition transform active:scale-95"
-                >
-                  طلب حصة مع المدرس الآن 🚀
-                </button>
-              </div>
+
 
               <div className="border-t border-sand dark:border-slate-800 pt-4 text-center">
                 <p className="text-[11px] font-bold text-ink/40 dark:text-slate-500">
