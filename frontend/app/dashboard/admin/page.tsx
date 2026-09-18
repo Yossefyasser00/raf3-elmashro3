@@ -467,6 +467,16 @@ export default function AdminDashboardPage() {
           submittedAt: new Date(application.createdAt).toLocaleString("ar-EG"),
         })));
 
+const KNOWN_SUBJECTS: Array<{ keywords: string[]; name: string }> = [
+  { keywords: ["كيمياء", "عضوية", "ألكين", "ألكان", "كيميائية"], name: "الكيمياء العضوية" },
+  { keywords: ["فيزياء", "كيرشوف", "نيوتن", "كهربية", "مغناطيسية", "ديناميكا"], name: "الفيزياء الهندسية" },
+  { keywords: ["رياضيات", "تفاضل", "تكامل", "جبر", "معادلات", "استاتيكا"], name: "الرياضيات التطبيقية" },
+  { keywords: ["برمجة", "خوارزميات", "algorithm", "python", "java", "c++", "كود"], name: "خوارزميات وبرمجة" },
+  { keywords: ["فارما", "أدوية", "صيدلة", "pharma"], name: "علم الأدوية (فارما)" },
+  { keywords: ["محاسبة", "مالية", "اقتصاد", "accounting"], name: "المحاسبة والمالية" },
+  { keywords: ["تشريح", "anatomy", "طب", "عظام", "أعصاب"], name: "علم التشريح (Anatomy)" },
+];
+
 function extractSubjectAndTopic(request: any) {
   let subject = request?.subject?.name;
   let topic = request?.topic?.name;
@@ -491,30 +501,39 @@ function extractSubjectAndTopic(request: any) {
     }
   }
 
-  // 3. Clean remaining description
+  // 3. If subject still not found, check known subject keywords
+  if (!subject) {
+    const lowerDesc = desc.toLowerCase();
+    for (const sub of KNOWN_SUBJECTS) {
+      if (sub.keywords.some((kw) => lowerDesc.includes(kw))) {
+        subject = sub.name;
+        break;
+      }
+    }
+  }
+
+  // 4. Clean remaining description
   const cleanDesc = desc
     .replace(/\[مكان الحضور المعتمد:[^\]]+\]/g, "")
     .replace(/\[[^\]]+\]/g, "")
     .replace(/\([^)]+\)/g, "")
     .trim();
 
-  // 4. Fallbacks if still missing
-  if (!subject && !topic) {
+  // 5. Fallback for topic
+  if (!topic) {
     if (cleanDesc) {
       const parts = cleanDesc.split(/[-–—،,\n]/).map((p: string) => p.trim()).filter(Boolean);
-      if (parts.length > 1) {
-        subject = parts[0];
-        topic = parts[1];
-      } else if (parts.length === 1) {
-        subject = "مادة دراسية";
-        topic = parts[0].slice(0, 45);
-      }
+      topic = parts[0]?.slice(0, 45) || "موضوع الحصة";
     }
   }
 
+  const finalTopic = topic || (cleanDesc ? cleanDesc.slice(0, 40) : "شرح ومراجعة");
+  const finalSubject = subject || "";
+
   return {
-    subject: subject || "مادة دراسية",
-    topic: topic || (cleanDesc ? cleanDesc.slice(0, 40) : "جلسة مراجعة وشرح"),
+    subject: finalSubject,
+    topic: finalTopic,
+    fullTitle: finalSubject && finalSubject !== finalTopic ? `${finalSubject} — ${finalTopic}` : (finalSubject || finalTopic),
   };
 }
 
