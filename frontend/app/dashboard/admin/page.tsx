@@ -831,7 +831,6 @@ export default function AdminDashboardPage() {
       );
       triggerToast(`✅ تم قبول المدرس وتفعيل حسابه ومنحه رول TUTOR بنجاح!`);
       setSelectedApp(null);
-      loadDashboardData();
     } catch (err: any) {
       triggerToast(`⚠️ ${err.message || "حدث خطأ أثناء قبول المدرس"}`);
     }
@@ -867,7 +866,6 @@ export default function AdminDashboardPage() {
       setRejectionModalApp(null);
       setRejectionReason("");
       setSelectedApp(null);
-      loadDashboardData();
     } catch (err: any) {
       triggerToast(`⚠️ ${err.message || "حدث خطأ أثناء رفض الطلب"}`);
     }
@@ -901,7 +899,6 @@ export default function AdminDashboardPage() {
       );
       triggerToast(`⚠️ تم إرسال إشعار للمدرس لطلب تعديل وتوضيح مستندات الخبرة.`);
       setSelectedApp(null);
-      loadDashboardData();
     } catch (err: any) {
       triggerToast(`⚠️ ${err.message || "حدث خطأ"}`);
     }
