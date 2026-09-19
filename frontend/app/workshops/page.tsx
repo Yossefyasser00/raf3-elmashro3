@@ -56,6 +56,8 @@ function WorkshopsContent() {
   const [paymentMethod, setPaymentMethod] = useState<"instapay" | "vodafone">("instapay");
   const [phoneOrAccount, setPhoneOrAccount] = useState("");
   const [couponCodeInput, setCouponCodeInput] = useState(initialCoupon);
+  const [appliedDiscountCoupon, setAppliedDiscountCoupon] = useState<string | null>(null);
+  const [discountCouponInput, setDiscountCouponInput] = useState("");
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isSubmittingPay, setIsSubmittingPay] = useState(false);
@@ -67,8 +69,13 @@ function WorkshopsContent() {
 
   useEffect(() => {
     if (initialCoupon) {
-      setCouponCodeInput(initialCoupon);
-      setPayTab("COUPON");
+      if (initialCoupon.startsWith("FZ50")) {
+        setAppliedDiscountCoupon(initialCoupon.toUpperCase());
+        setPayTab("CASH");
+      } else {
+        setCouponCodeInput(initialCoupon);
+        setPayTab("COUPON");
+      }
     }
   }, [initialCoupon]);
 
@@ -138,7 +145,10 @@ function WorkshopsContent() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ paidWithPoints: false }),
+          body: JSON.stringify({
+            paidWithPoints: false,
+            couponCode: appliedDiscountCoupon || undefined,
+          }),
         });
         if (res.ok) {
           const newEnroll = await res.json();
@@ -156,6 +166,7 @@ function WorkshopsContent() {
       setTimeout(() => {
         setPaymentSuccess(false);
         setSelectedPaidWorkshop(null);
+        setAppliedDiscountCoupon(null);
         setSuccessMsg(null);
       }, 3000);
     }, 1200);
@@ -189,6 +200,7 @@ function WorkshopsContent() {
         setTimeout(() => {
           setPaymentSuccess(false);
           setSelectedPaidWorkshop(null);
+          setAppliedDiscountCoupon(null);
           setSuccessMsg(null);
         }, 2500);
       } else {
@@ -203,12 +215,22 @@ function WorkshopsContent() {
     }
   }
 
-  // Handle Coupon Enrollment (WS-FREE-... -> Immediate APPROVED)
+  // Handle Coupon Enrollment (WS-FREE-... or FZ50-... -> Immediate APPROVED if full cover)
   async function handleCouponEnroll(workshopId: string, code: string) {
     if (!code.trim()) {
       alert("يرجى إدخال كود الكوبون أو التذكرة");
       return;
     }
+    const cleanCode = code.trim().toUpperCase();
+    const workshop = workshops.find(w => w.id === workshopId) || selectedPaidWorkshop;
+    const price = workshop?.priceEGP ?? 0;
+
+    if (cleanCode.startsWith("FZ50") && price > 50) {
+      setAppliedDiscountCoupon(cleanCode);
+      setPayTab("CASH");
+      return;
+    }
+
     setIsSubmittingPay(true);
     try {
       const token = localStorage.getItem("fz_token");
@@ -223,17 +245,18 @@ function WorkshopsContent() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ couponCode: code.trim() }),
+        body: JSON.stringify({ couponCode: cleanCode }),
       });
 
       if (res.ok) {
         const newEnroll = await res.json();
         setMyEnrollments(prev => [...prev.filter(e => e.workshopId !== workshopId && e.workshop?.id !== workshopId), newEnroll]);
         setPaymentSuccess(true);
-        setSuccessMsg("🎉 مبروك! تم تفعيل تذكرة الورشة المجانية بنجاح وتم فتح المحتوى لك فوراً!");
+        setSuccessMsg("🎉 مبروك! تم تفعيل الورشة بنجاح وتم فتح المحتوى لك فوراً!");
         setTimeout(() => {
           setPaymentSuccess(false);
           setSelectedPaidWorkshop(null);
+          setAppliedDiscountCoupon(null);
           setSuccessMsg(null);
         }, 2500);
       } else {
@@ -250,6 +273,7 @@ function WorkshopsContent() {
 
   const hasWorkshopCoupon = userCoupons.some(c => c.type === "FREE_WORKSHOP" || c.code.startsWith("WS-FREE"));
   const firstWorkshopCoupon = userCoupons.find(c => c.type === "FREE_WORKSHOP" || c.code.startsWith("WS-FREE"));
+  const discountCoupons = userCoupons.filter(c => c.type === "DISCOUNT_50" || c.code.startsWith("FZ50"));
 
   return (
     <main className="min-h-screen bg-cream pb-24 pt-6 transition-colors duration-300 dark:bg-[#0B0F19]">
@@ -585,82 +609,195 @@ function WorkshopsContent() {
                 </div>
 
                 {/* TAB 1: CASH PAYMENT */}
-                {payTab === "CASH" && (
-                  <form onSubmit={handlePaySubmit} className="space-y-4">
-                    <div className="rounded-2xl bg-cream/70 p-3.5 dark:bg-slate-800 flex items-center justify-between">
-                      <span className="text-xs font-bold text-ink/70 dark:text-slate-300">
-                        المبلغ المطلوب سداده:
-                      </span>
-                      <span className="text-xl font-black text-coral">
-                        {selectedPaidWorkshop.priceEGP ?? 0} ج.م
-                      </span>
-                    </div>
+                {payTab === "CASH" && (() => {
+                  const originalPrice = selectedPaidWorkshop.priceEGP ?? 0;
+                  const discountVal = appliedDiscountCoupon ? 50 : 0;
+                  const finalCashPrice = Math.max(0, originalPrice - discountVal);
 
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { id: "vodafone", label: "فودافون كاش 📱" },
-                        { id: "instapay", label: "إنستاباي ⚡" },
-                      ].map((m) => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => setPaymentMethod(m.id as any)}
-                          className={`rounded-xl border p-2 text-xs font-bold transition ${
-                            paymentMethod === m.id
-                              ? "border-coral bg-coral/15 text-coral font-black"
-                              : "border-sand bg-cream/30 text-ink/70 hover:bg-cream dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                          }`}
-                        >
-                          {m.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {paymentMethod === "vodafone" ? (
-                      <div className="rounded-2xl bg-orange-500/10 border border-orange-500/20 p-3 text-xs space-y-1">
-                        <div className="font-bold text-orange-600">📱 حوّل إلى رقم فودافون كاش:</div>
-                        <div className="flex items-center justify-between bg-white/80 dark:bg-slate-900/80 p-2 rounded-xl border border-orange-500/20">
-                          <span className="font-mono text-base font-black text-ink dark:text-white tracking-widest">01020246369</span>
-                          <span className="text-[10px] text-orange-600 font-bold">رقم المنصة</span>
+                  return (
+                    <form onSubmit={handlePaySubmit} className="space-y-4">
+                      {/* Price Breakdown */}
+                      <div className="rounded-2xl bg-cream/70 p-3.5 dark:bg-slate-800 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-ink/70 dark:text-slate-300">
+                          <span>سعر الورشة:</span>
+                          <span className={appliedDiscountCoupon ? "line-through text-ink/40" : "text-base font-black text-ink dark:text-white"}>
+                            {originalPrice} ج.م
+                          </span>
+                        </div>
+                        {appliedDiscountCoupon && (
+                          <div className="flex items-center justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                            <span>خصم الكوبون ({appliedDiscountCoupon}):</span>
+                            <span>- 50 ج.م</span>
+                          </div>
+                        )}
+                        <div className="pt-2 border-t border-sand/60 dark:border-slate-700 flex items-center justify-between">
+                          <span className="text-xs font-black text-ink dark:text-white">
+                            المبلغ النهائي المطلوب:
+                          </span>
+                          <span className="text-xl font-black text-coral">
+                            {finalCashPrice} ج.م
+                          </span>
                         </div>
                       </div>
-                    ) : (
-                      <div className="rounded-2xl bg-purple-500/10 border border-purple-500/20 p-3 text-xs space-y-1">
-                        <div className="font-bold text-purple-600">⚡ حوّل عبر تطبيق إنستاباي إلى:</div>
-                        <div className="flex items-center justify-between bg-white/80 dark:bg-slate-900/80 p-2 rounded-xl border border-purple-500/20">
-                          <span className="font-mono text-base font-black text-ink dark:text-white tracking-widest">01097321202</span>
-                          <span className="text-[10px] text-purple-600 font-bold">حساب المنصة</span>
+
+                      {/* Coupon Application Box */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-ink/80 dark:text-slate-300 flex items-center gap-1">
+                            <Ticket className="h-3.5 w-3.5 text-coral" />
+                            <span>هل لديك كوبون خصم 50 ج.م؟</span>
+                          </label>
+                          {appliedDiscountCoupon && (
+                            <button
+                              type="button"
+                              onClick={() => setAppliedDiscountCoupon(null)}
+                              className="text-[11px] font-bold text-red-500 hover:underline"
+                            >
+                              إلغاء الكوبون
+                            </button>
+                          )}
                         </div>
+
+                        {!appliedDiscountCoupon ? (
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                placeholder="مثال: FZ50-XXXXX"
+                                value={discountCouponInput}
+                                onChange={(e) => setDiscountCouponInput(e.target.value)}
+                                className="flex-1 rounded-xl border border-sand bg-white p-2 text-xs font-mono font-bold text-ink uppercase outline-none focus:border-coral dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const code = discountCouponInput.trim().toUpperCase();
+                                  if (!code) return;
+                                  setAppliedDiscountCoupon(code);
+                                }}
+                                className="rounded-xl bg-ink px-4 py-2 text-xs font-bold text-white hover:bg-ink/80 dark:bg-slate-700 transition"
+                              >
+                                تطبيق
+                              </button>
+                            </div>
+
+                            {discountCoupons.length > 0 && (
+                              <div className="space-y-1">
+                                <span className="text-[10px] font-bold text-ink/60 dark:text-slate-400">
+                                  كوبونات الخصم المتاحة بحسابك:
+                                </span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {discountCoupons.map((c, i) => (
+                                    <button
+                                      key={i}
+                                      type="button"
+                                      onClick={() => {
+                                        setAppliedDiscountCoupon(c.code);
+                                        setDiscountCouponInput(c.code);
+                                      }}
+                                      className="rounded-lg bg-coral/10 border border-coral/30 px-2.5 py-1 text-[11px] font-bold text-coral hover:bg-coral/20 transition flex items-center gap-1"
+                                    >
+                                      <span>🏷️ {c.code}</span>
+                                      <span className="text-[10px] text-coral/80">(-50 ج.م)</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
+                            <span>✓ تم تطبيق كوبون الخصم: <code className="font-mono font-black">{appliedDiscountCoupon}</code></span>
+                            <span className="text-[11px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-full">-50 ج.م</span>
+                          </div>
+                        )}
                       </div>
-                    )}
 
-                    <div>
-                      <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1">
-                        {paymentMethod === "vodafone"
-                          ? "رقم محفظة فودافون كاش التي حوّلت منها:"
-                          : "رقم الهاتف أو عنوان IPA الذي حوّلت منه:"}
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder={paymentMethod === "vodafone" ? "010xxxxxxxx" : "010xxxxxxxx أو username@instapay"}
-                        value={phoneOrAccount}
-                        onChange={(e) => setPhoneOrAccount(e.target.value)}
-                        className="w-full rounded-2xl border border-sand bg-cream/40 p-2.5 text-xs font-semibold text-ink outline-none transition focus:border-coral dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                      />
-                    </div>
+                      {finalCashPrice === 0 ? (
+                        <div className="rounded-2xl bg-emerald-50 border border-emerald-300 p-4 dark:bg-slate-800 text-center space-y-3">
+                          <div className="text-2xl">🎉</div>
+                          <p className="text-xs font-bold text-emerald-800 dark:text-emerald-200">
+                            كوبون الخصم يغطي سعر الورشة بالكامل (0 ج.م مطلوب)!
+                          </p>
+                          <button
+                            type="button"
+                            disabled={isSubmittingPay}
+                            onClick={() => handleCouponEnroll(selectedPaidWorkshop.id, appliedDiscountCoupon!)}
+                            className="w-full rounded-2xl bg-emerald-600 p-3.5 text-center text-xs font-black text-white hover:bg-emerald-700 transition shadow-md shadow-emerald-600/25 disabled:opacity-50"
+                          >
+                            {isSubmittingPay ? "جاري التفعيل..." : "تفعيل الورشة مجاناً بالكوبون (0 ج.م) ✓"}
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { id: "vodafone", label: "فودافون كاش 📱" },
+                              { id: "instapay", label: "إنستاباي ⚡" },
+                            ].map((m) => (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => setPaymentMethod(m.id as any)}
+                                className={`rounded-xl border p-2 text-xs font-bold transition ${
+                                  paymentMethod === m.id
+                                    ? "border-coral bg-coral/15 text-coral font-black"
+                                    : "border-sand bg-cream/30 text-ink/70 hover:bg-cream dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                }`}
+                              >
+                                {m.label}
+                              </button>
+                            ))}
+                          </div>
 
-                    <div className="pt-2 flex gap-2">
-                      <button
-                        type="submit"
-                        disabled={isSubmittingPay}
-                        className="flex-1 rounded-2xl bg-coral p-3 text-center text-xs font-black text-white hover:bg-coralDark transition shadow-md shadow-coral/25 disabled:opacity-50"
-                      >
-                        {isSubmittingPay ? "جاري الإرسال..." : `تأكيد الدفع (${selectedPaidWorkshop.priceEGP ?? 0} ج.م) ✓`}
-                      </button>
-                    </div>
-                  </form>
-                )}
+                          {paymentMethod === "vodafone" ? (
+                            <div className="rounded-2xl bg-orange-500/10 border border-orange-500/20 p-3 text-xs space-y-1">
+                              <div className="font-bold text-orange-600">📱 حوّل مبلغ {finalCashPrice} ج.م إلى فودافون كاش:</div>
+                              <div className="flex items-center justify-between bg-white/80 dark:bg-slate-900/80 p-2 rounded-xl border border-orange-500/20">
+                                <span className="font-mono text-base font-black text-ink dark:text-white tracking-widest">01020246369</span>
+                                <span className="text-[10px] text-orange-600 font-bold">رقم المنصة</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="rounded-2xl bg-purple-500/10 border border-purple-500/20 p-3 text-xs space-y-1">
+                              <div className="font-bold text-purple-600">⚡ حوّل مبلغ {finalCashPrice} ج.م عبر إنستاباي إلى:</div>
+                              <div className="flex items-center justify-between bg-white/80 dark:bg-slate-900/80 p-2 rounded-xl border border-purple-500/20">
+                                <span className="font-mono text-base font-black text-ink dark:text-white tracking-widest">01097321202</span>
+                                <span className="text-[10px] text-purple-600 font-bold">حساب المنصة</span>
+                              </div>
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1">
+                              {paymentMethod === "vodafone"
+                                ? "رقم محفظة فودافون كاش التي حوّلت منها:"
+                                : "رقم الهاتف أو عنوان IPA الذي حوّلت منه:"}
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder={paymentMethod === "vodafone" ? "010xxxxxxxx" : "010xxxxxxxx أو username@instapay"}
+                              value={phoneOrAccount}
+                              onChange={(e) => setPhoneOrAccount(e.target.value)}
+                              className="w-full rounded-2xl border border-sand bg-cream/40 p-2.5 text-xs font-semibold text-ink outline-none transition focus:border-coral dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                            />
+                          </div>
+
+                          <div className="pt-2 flex gap-2">
+                            <button
+                              type="submit"
+                              disabled={isSubmittingPay}
+                              className="flex-1 rounded-2xl bg-coral p-3 text-center text-xs font-black text-white hover:bg-coralDark transition shadow-md shadow-coral/25 disabled:opacity-50"
+                            >
+                              {isSubmittingPay ? "جاري الإرسال..." : `تأكيد الدفع (${finalCashPrice} ج.م) ✓`}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </form>
+                  );
+                })()}
 
                 {/* TAB 2: POINTS REDEMPTION */}
                 {payTab === "POINTS" && (
@@ -711,27 +848,37 @@ function WorkshopsContent() {
                       </label>
                       <input
                         type="text"
-                        placeholder="مثال: WS-FREE-XXXXX"
+                        placeholder="مثال: WS-FREE-XXXXX أو FZ50-XXXXX"
                         value={couponCodeInput}
                         onChange={(e) => setCouponCodeInput(e.target.value)}
                         className="w-full rounded-2xl border border-sand bg-white p-3 font-mono text-sm font-black text-ink outline-none uppercase tracking-wider focus:border-coral dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 text-center"
                       />
                     </div>
 
-                    {userCoupons.filter(c => c.type === "FREE_WORKSHOP" || c.code.startsWith("WS-FREE")).length > 0 && (
+                    {userCoupons.length > 0 && (
                       <div className="space-y-1.5">
                         <span className="text-[11px] font-bold text-ink/60 dark:text-slate-400">
-                          تذاكرك المجانية المستبدلة الجاهزة:
+                          كوبوناتك وتذاكرك المستبدلة الجاهزة:
                         </span>
                         <div className="space-y-1">
-                          {userCoupons.filter(c => c.type === "FREE_WORKSHOP" || c.code.startsWith("WS-FREE")).map((c, i) => (
+                          {userCoupons.map((c, i) => (
                             <button
                               key={i}
                               type="button"
-                              onClick={() => setCouponCodeInput(c.code)}
-                              className="w-full rounded-xl bg-mint/15 border border-mint/30 p-2 text-xs font-bold text-mint flex items-center justify-between hover:bg-mint/25 transition"
+                              onClick={() => {
+                                setCouponCodeInput(c.code);
+                                if (c.code.startsWith("FZ50") && (selectedPaidWorkshop.priceEGP ?? 0) > 50) {
+                                  setAppliedDiscountCoupon(c.code);
+                                  setPayTab("CASH");
+                                }
+                              }}
+                              className={`w-full rounded-xl border p-2 text-xs font-bold flex items-center justify-between transition ${
+                                c.code.startsWith("WS-FREE")
+                                  ? "bg-mint/15 border-mint/30 text-mint hover:bg-mint/25"
+                                  : "bg-coral/15 border-coral/30 text-coral hover:bg-coral/25"
+                              }`}
                             >
-                              <span>🎟️ {c.title || "تذكرة ورشة عمل"}</span>
+                              <span>{c.code.startsWith("WS-FREE") ? "🎟️ تذكرة ورشة مجانية" : "🏷️ كوبون خصم 50 ج.م"}</span>
                               <code className="font-mono font-black">{c.code}</code>
                             </button>
                           ))}
@@ -745,7 +892,7 @@ function WorkshopsContent() {
                       onClick={() => handleCouponEnroll(selectedPaidWorkshop.id, couponCodeInput)}
                       className="w-full rounded-2xl bg-coral p-3.5 text-center text-xs font-black text-white hover:bg-coralDark transition shadow-lg shadow-coral/25 disabled:opacity-50"
                     >
-                      {isSubmittingPay ? "جاري التحقق والتفعيل..." : "تفعيل التذكرة وحضور الورشة مجاناً ✓"}
+                      {isSubmittingPay ? "جاري التحقق والتفعيل..." : "تفعيل الكوبون / التذكرة ✓"}
                     </button>
                   </div>
                 )}

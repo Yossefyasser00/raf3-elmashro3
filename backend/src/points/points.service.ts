@@ -26,14 +26,10 @@ export class PointsService {
         points: Math.abs(t.points),
         type: t.refId!.startsWith('WS-FREE')
           ? 'FREE_WORKSHOP'
-          : t.refId!.startsWith('QUIZ-FREE')
-            ? 'FREE_QUIZ'
-            : 'DISCOUNT_COUPON',
+          : 'DISCOUNT_COUPON',
         title: t.refId!.startsWith('WS-FREE')
           ? 'تذكرة ورشة عمل مجانية'
-          : t.refId!.startsWith('QUIZ-FREE')
-            ? 'جلسة مراجعة كويز مجانية'
-            : 'كوبون خصم 50 ج.م على الجلسة',
+          : 'كوبون خصم 50 ج.م على الجلسة أو الورشة',
       }));
 
     return {
@@ -64,14 +60,11 @@ export class PointsService {
     // Generate Coupon or Ticket
     const randomSuffix = Math.random().toString(36).substring(2, 7).toUpperCase();
     let couponCode = `FZ50-${randomSuffix}`;
-    let rewardSummary = 'كوبون خصم 50 ج.م على الجلسة القادمة';
+    let rewardSummary = 'كوبون خصم 50 ج.م على الجلسة أو الورشة';
 
     if (dto.rewardType === 'FREE_WORKSHOP' || dto.title?.includes('ورشة')) {
       couponCode = `WS-FREE-${randomSuffix}`;
       rewardSummary = 'تذكرة حضور ورشة عمل مجانية';
-    } else if (dto.rewardType === 'FREE_QUIZ' || dto.title?.includes('كويز')) {
-      couponCode = `QUIZ-FREE-${randomSuffix}`;
-      rewardSummary = 'جلسة مراجعة كويز مجانية';
     }
 
     // Deduct 500 points and log transaction

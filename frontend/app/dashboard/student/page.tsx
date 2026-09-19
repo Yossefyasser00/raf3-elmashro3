@@ -316,6 +316,8 @@ export default function StudentDashboardPage() {
   const [paymentModalReq, setPaymentModalReq] = useState<{ reqId: string; negId: string; amount: number; tutorName: string; subject: string } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"instapay" | "vodafone" | "card">("instapay");
   const [paymentAccount, setPaymentAccount] = useState("");
+  const [sessionCouponInput, setSessionCouponInput] = useState("");
+  const [appliedSessionCoupon, setAppliedSessionCoupon] = useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
 
@@ -559,7 +561,8 @@ export default function StudentDashboardPage() {
         // Find the accepted negotiation from the current requests state
         const req = requests.find(r => r.id === reqId);
         const neg = req?.negotiations?.find(n => n.id === negotiationId);
-        // Show payment modal
+        // Check if student has an unused FZ50 discount coupon
+        const discountCoupon = redeemedCoupons.find(c => c.type === "DISCOUNT_COUPON" || c.code.startsWith("FZ50"));
         setPaymentModalReq({
           reqId,
           negId: negotiationId,
@@ -570,6 +573,8 @@ export default function StudentDashboardPage() {
         setPaymentSuccess(false);
         setPaymentAccount("");
         setPaymentMethod("instapay");
+        setAppliedSessionCoupon(discountCoupon ? discountCoupon.code : null);
+        setSessionCouponInput(discountCoupon ? discountCoupon.code : "");
       } else {
         triggerToast("ℹ️ تم رفض عرض المدرس وسيظل الطلب مفتوحًا للمدرسين الآخرين.");
       }
@@ -587,6 +592,10 @@ export default function StudentDashboardPage() {
     try {
       if (token) {
         const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
+        const senderInfo = appliedSessionCoupon
+          ? `${paymentAccount.trim()} [كوبون خصم: ${appliedSessionCoupon} -50 ج.م]`
+          : paymentAccount.trim();
+
         await fetch(`${apiBase}/api/v1/requests/${paymentModalReq.reqId}/confirm-payment`, {
           method: "PATCH",
           headers: {
@@ -594,7 +603,7 @@ export default function StudentDashboardPage() {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            senderAccount: paymentAccount,
+            senderAccount: senderInfo,
             method: paymentMethod,
           }),
         });
@@ -1940,11 +1949,11 @@ export default function StudentDashboardPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2">
                 {[
                   {
                     title: "كوبون خصم 50 ج.م",
-                    desc: "خصم فوري يطبق على جلستك القادمة مع أي مدرس.",
+                    desc: "كوبون خصم فوري (50 ج.م) يطبق عند دفع أي حصة دراسية أو ورشة عمل.",
                     cost: 500,
                     type: "DISCOUNT_COUPON",
                     icon: "🎟️",
@@ -1952,19 +1961,11 @@ export default function StudentDashboardPage() {
                   },
                   {
                     title: "تذكرة ورشة عمل مجانية",
-                    desc: "حضور أي ورشة عمل أونلاين لمراجعة ليلة الامتحان.",
+                    desc: "حضور أي ورشة عمل أونلاين ومراجعة نهائية مجاناً بالكامل.",
                     cost: 500,
                     type: "FREE_WORKSHOP",
                     icon: "📚",
                     tag: "موصى به",
-                  },
-                  {
-                    title: "مراجعة كويز مع مدرس مجاناً",
-                    desc: "جلسة سريعة لمدة 20 دقيقة لحل أي نموذج امتحان.",
-                    cost: 500,
-                    type: "FREE_QUIZ",
-                    icon: "📝",
-                    tag: "VIP",
                   },
                 ].map((item, i) => (
                   <div key={i} className="rounded-3xl border border-sand bg-white p-5 flex flex-col justify-between space-y-4 shadow-sm hover:shadow-md transition">
@@ -2205,11 +2206,102 @@ export default function StudentDashboardPage() {
               </div>
             ) : (
               <form onSubmit={handleConfirmPayment} className="mt-4 space-y-4">
-                {/* Price Display */}
-                <div className="rounded-2xl bg-cream/70 p-4 flex items-center justify-between">
-                  <span className="text-xs font-bold text-ink/70">المبلغ المطلوب سداده:</span>
-                  <span className="text-xl font-black text-coral">{paymentModalReq.amount} ج.م</span>
-                </div>
+                {/* Price Display with Coupon Breakdown */}
+                {(() => {
+                  const discountCoupons = redeemedCoupons.filter(c => c.type === "DISCOUNT_COUPON" || c.code.startsWith("FZ50"));
+                  const discountVal = appliedSessionCoupon ? 50 : 0;
+                  const finalAmountToPay = Math.max(0, paymentModalReq.amount - discountVal);
+
+                  return (
+                    <>
+                      <div className="rounded-2xl bg-cream/70 p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-ink/70">سعر الجلسة الأصلي:</span>
+                          <span className={`text-sm font-bold ${appliedSessionCoupon ? "line-through text-ink/40" : "text-ink"}`}>
+                            {paymentModalReq.amount} ج.م
+                          </span>
+                        </div>
+
+                        {appliedSessionCoupon && (
+                          <div className="flex items-center justify-between text-xs font-bold text-mint border-t border-sand/60 pt-1.5">
+                            <span>خصم الكوبون ({appliedSessionCoupon}):</span>
+                            <span>-50 ج.م ✓</span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between border-t border-sand/60 pt-2">
+                          <span className="text-xs font-black text-ink">المبلغ المطلوب سداده:</span>
+                          <span className="text-xl font-black text-coral">{finalAmountToPay} ج.م</span>
+                        </div>
+                      </div>
+
+                      {/* Coupon Input & Quick Select */}
+                      <div className="rounded-2xl border border-sand bg-white p-3 space-y-2">
+                        <label className="block text-xs font-bold text-ink">
+                          🎟️ هل لديك كوبون خصم 50 ج.م؟
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="مثال: FZ50-XXXXX"
+                            value={sessionCouponInput}
+                            onChange={(e) => setSessionCouponInput(e.target.value)}
+                            className="flex-1 rounded-xl border border-sand p-2 text-xs font-mono uppercase text-center outline-none focus:border-coral"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!sessionCouponInput.trim()) {
+                                triggerToast("يرجى كتابة كود الكوبون أولاً");
+                                return;
+                              }
+                              setAppliedSessionCoupon(sessionCouponInput.trim().toUpperCase());
+                              triggerToast("🎉 تم تطبيق كوبون الخصم (-50 ج.م) بنجاح!");
+                            }}
+                            className="rounded-xl bg-ink px-3 py-2 text-xs font-black text-white hover:bg-coral transition"
+                          >
+                            تطبيق
+                          </button>
+                          {appliedSessionCoupon && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAppliedSessionCoupon(null);
+                                setSessionCouponInput("");
+                                triggerToast("تمت إزالة الكوبون");
+                              }}
+                              className="rounded-xl border border-sand px-2.5 py-2 text-xs font-bold text-ink/60 hover:bg-sand"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+
+                        {discountCoupons.length > 0 && !appliedSessionCoupon && (
+                          <div className="pt-1">
+                            <span className="text-[10px] text-ink/50 block mb-1">كوبوناتك المتاحة بحسابك:</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {discountCoupons.map((c, i) => (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  onClick={() => {
+                                    setSessionCouponInput(c.code);
+                                    setAppliedSessionCoupon(c.code);
+                                    triggerToast("🎉 تم تطبيق كود الخصم (-50 ج.م) بنجاح!");
+                                  }}
+                                  className="rounded-lg bg-mint/15 border border-mint/30 px-2 py-1 text-[11px] font-mono font-bold text-mint hover:bg-mint/25 transition"
+                                >
+                                  🎟️ {c.code}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
 
                 {/* Method selector */}
                 <div>
@@ -2276,7 +2368,7 @@ export default function StudentDashboardPage() {
                     disabled={isSubmittingPayment}
                     className="flex-1 rounded-2xl bg-coral p-3 text-center text-xs font-black text-white hover:bg-coralDark transition shadow-md shadow-coral/25 disabled:opacity-50"
                   >
-                    {isSubmittingPayment ? "جاري المعالجة..." : `تأكيد الدفع (${paymentModalReq.amount} ج.م) ✓`}
+                    {isSubmittingPayment ? "جاري المعالجة..." : `تأكيد الدفع (${Math.max(0, paymentModalReq.amount - (appliedSessionCoupon ? 50 : 0))} ج.م) ✓`}
                   </button>
                   <button
                     type="button"

@@ -240,7 +240,9 @@ export class WorkshopsService {
       isApproved = true;
     } else if (couponCode && couponCode.trim()) {
       const code = couponCode.trim().toUpperCase();
-      // Allow WS-FREE or coupon transactions
+      const isWSFree = code.startsWith('WS-FREE');
+      const isFZ50 = code.startsWith('FZ50');
+
       const validTx = await this.prisma.pointTransaction.findFirst({
         where: {
           userId,
@@ -248,11 +250,22 @@ export class WorkshopsService {
         },
       });
 
-      if (!validTx && !code.startsWith('WS-FREE')) {
-        throw new BadRequestException('كود الكوبون غير صالح أو غير مخصص لتذاكر ورش العمل.');
+      if (!validTx && !isWSFree && !isFZ50) {
+        throw new BadRequestException('كود الكوبون غير صالح أو غير مسجل بحسابك.');
       }
 
-      isApproved = true;
+      if (isWSFree) {
+        isApproved = true;
+      } else if (isFZ50) {
+        const remainingPrice = Math.max(0, (workshop.priceEGP ?? 0) - 50);
+        if (remainingPrice === 0) {
+          isApproved = true;
+        } else {
+          isApproved = false;
+        }
+      } else {
+        isApproved = true;
+      }
     }
 
     const status = isApproved ? 'APPROVED' : 'PENDING';
