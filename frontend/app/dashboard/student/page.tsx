@@ -27,6 +27,10 @@ import {
   Timer,
   Mic,
   Calendar,
+  Filter,
+  Sliders,
+  GraduationCap,
+  BookOpen,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -63,6 +67,7 @@ interface RequestItem {
   topic: string;
   faculty?: string;
   university?: string;
+  academicYear?: string;
   description: string;
   mode: "ONLINE" | "IN_PERSON";
   budget: number;
@@ -182,6 +187,7 @@ function extractRequestMetadata(request: any) {
   let topic = request?.topic?.name;
   let faculty = request?.faculty?.name || request?.student?.studentProfile?.facultyName || "";
   let university = request?.university?.name || request?.student?.studentProfile?.universityName || "";
+  let academicYear = "";
   const desc = (request?.description || "").trim();
 
   // 1. Extract faculty if in description: [الكلية: ...]
@@ -196,19 +202,43 @@ function extractRequestMetadata(request: any) {
     university = uniMatch[1].trim();
   }
 
-  // 3. Extract subject if between [brackets] and not a location/faculty/uni tag
+  // 3. Extract academic year: [السنة الدراسية: ...] or [الفرقة: ...] or from profile/request
+  const yearMatch = desc.match(/\[(?:السنة الدراسية|الفرقة|السنة):\s*([^\]]+)\]/);
+  if (yearMatch) {
+    academicYear = yearMatch[1].trim();
+  } else if (request?.academicYear) {
+    const num = Number(request.academicYear);
+    if (num === 1) academicYear = "الفرقة الأولى";
+    else if (num === 2) academicYear = "الفرقة الثانية";
+    else if (num === 3) academicYear = "الفرقة الثالثة";
+    else if (num === 4) academicYear = "الفرقة الرابعة";
+    else if (num === 5) academicYear = "الفرقة الخامسة";
+    else academicYear = `الفرقة ${num}`;
+  } else if (request?.student?.studentProfile?.academicYear) {
+    const num = Number(request.student.studentProfile.academicYear);
+    if (num === 1) academicYear = "الفرقة الأولى";
+    else if (num === 2) academicYear = "الفرقة الثانية";
+    else if (num === 3) academicYear = "الفرقة الثالثة";
+    else if (num === 4) academicYear = "الفرقة الرابعة";
+    else if (num === 5) academicYear = "الفرقة الخامسة";
+    else academicYear = `الفرقة ${num}`;
+  } else if (request?.student?.studentProfile?.gradeLevel) {
+    academicYear = request.student.studentProfile.gradeLevel;
+  }
+
+  // 4. Extract subject if between [brackets] and not a location/faculty/uni/year tag
   if (!subject) {
     const bracketMatches = [...desc.matchAll(/\[([^\]]+)\]/g)];
     for (const match of bracketMatches) {
       const tag = match[1].trim();
-      if (!tag.startsWith("مكان الحضور") && !tag.startsWith("الكلية:") && !tag.startsWith("الجامعة:")) {
+      if (!tag.startsWith("مكان الحضور") && !tag.startsWith("الكلية:") && !tag.startsWith("الجامعة:") && !tag.startsWith("السنة الدراسية:") && !tag.startsWith("الفرقة:") && !tag.startsWith("السنة:")) {
         subject = tag;
         break;
       }
     }
   }
 
-  // 4. Extract topic if between (parentheses)
+  // 5. Extract topic if between (parentheses)
   if (!topic) {
     const parenMatch = desc.match(/\(([^)]+)\)/);
     if (parenMatch) {
@@ -216,7 +246,7 @@ function extractRequestMetadata(request: any) {
     }
   }
 
-  // 5. If subject still not found, check known subject keywords
+  // 6. If subject still not found, check known subject keywords
   if (!subject) {
     const lowerDesc = desc.toLowerCase();
     for (const sub of KNOWN_SUBJECTS) {
@@ -227,16 +257,19 @@ function extractRequestMetadata(request: any) {
     }
   }
 
-  // 6. Clean remaining description
+  // 7. Clean remaining description
   const cleanDesc = desc
     .replace(/\[مكان الحضور المعتمد:[^\]]+\]/g, "")
     .replace(/\[الكلية:[^\]]+\]/g, "")
     .replace(/\[الجامعة:[^\]]+\]/g, "")
+    .replace(/\[السنة الدراسية:[^\]]+\]/g, "")
+    .replace(/\[الفرقة:[^\]]+\]/g, "")
+    .replace(/\[السنة:[^\]]+\]/g, "")
     .replace(/\[[^\]]+\]/g, "")
     .replace(/\([^)]+\)/g, "")
     .trim();
 
-  // 7. Fallback for topic
+  // 8. Fallback for topic
   if (!topic) {
     if (cleanDesc) {
       const parts = cleanDesc.split(/[-–—،,\n]/).map((p: string) => p.trim()).filter(Boolean);
@@ -247,7 +280,7 @@ function extractRequestMetadata(request: any) {
   const finalTopic = topic || (cleanDesc ? cleanDesc.slice(0, 40) : "شرح ومراجعة");
   const finalSubject = subject || "";
 
-  // 8. Infer faculty if missing or generic
+  // 9. Infer faculty if missing or generic
   if (!faculty || faculty === "كلية غير محددة" || faculty.trim() === "") {
     if (finalSubject && SUBJECT_TO_FACULTY[finalSubject]) {
       faculty = SUBJECT_TO_FACULTY[finalSubject];
@@ -279,11 +312,16 @@ function extractRequestMetadata(request: any) {
     university = "جامعة المنصورة";
   }
 
+  if (!academicYear) {
+    academicYear = "الفرقة الأولى";
+  }
+
   return {
     subject: finalSubject,
     topic: finalTopic,
     faculty,
     university,
+    academicYear,
     fullTitle: finalSubject && finalSubject !== finalTopic ? `${finalSubject} — ${finalTopic}` : (finalSubject || finalTopic),
   };
 }
@@ -297,6 +335,13 @@ export default function StudentDashboardPage() {
   const [points, setPoints] = useState<number>(0);
   const [redeemedCoupons, setRedeemedCoupons] = useState<any[]>([]);
   const [selectedReqForDetail, setSelectedReqForDetail] = useState<RequestItem | null>(null);
+
+  // Filter state for Student Requests
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [selectedFacultyFilter, setSelectedFacultyFilter] = useState("ALL");
+  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState("ALL");
+  const [selectedYearFilter, setSelectedYearFilter] = useState("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_CHAT_MESSAGES);
@@ -361,13 +406,14 @@ export default function StudentDashboardPage() {
         const data = await response.json();
         setRequests(
           data.map((request: any): RequestItem => {
-            const { subject, topic, faculty, university } = extractRequestMetadata(request);
+            const { subject, topic, faculty, university, academicYear } = extractRequestMetadata(request);
             return {
               id: request.id,
               subject,
               topic,
               faculty,
               university,
+              academicYear,
               description: request.description,
               mode: request.teachingMode,
               budget: request.budgetEGP ?? 0,
@@ -1338,233 +1384,426 @@ export default function StudentDashboardPage() {
           {/* ========================================================
               NAV 2: ALL STUDENT REQUESTS (SHOWED IN DETAIL)
           ======================================================== */}
-          {activeNav === "requests" && (
-            <div className="space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-sand bg-white p-6 shadow-sm">
-                <div>
-                  <h1 className="text-2xl font-black text-ink">📋 جميع طلباتي واستغاثاتي الأكاديمية</h1>
-                  <p className="text-sm text-ink/60">
-                    تتبع حالة كل طلب، راجع عروض التفاوض من المدرسين، واقبل العرض المناسب لك.
-                  </p>
-                </div>
-                <Link
-                  href="/requests/new"
-                  className="rounded-full bg-coral px-5 py-2.5 text-xs font-black text-white hover:bg-coralDark transition shadow"
-                >
-                  + انشر طلب جديد
-                </Link>
-              </div>
+          {activeNav === "requests" && (() => {
+            const availableFaculties = Array.from(new Set(requests.map(r => r.faculty).filter(Boolean)));
+            const availableSubjects = Array.from(new Set(requests.map(r => r.subject).filter(Boolean)));
+            const availableYears = Array.from(new Set(requests.map(r => r.academicYear).filter(Boolean)));
 
-              <div className="space-y-4">
-                {requests.map((r) => (
-                  <div key={r.id} className="rounded-3xl border border-sand bg-white p-6 shadow-sm space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sand pb-4">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <code className="font-mono text-xs font-bold text-ink/60 bg-ink/5 px-2 py-0.5 rounded">
-                            {r.id}
-                          </code>
-                          <span className={"rounded-full px-3 py-0.5 text-xs font-black " + (
-                            r.status === "CONFIRMED" ? "bg-mint/20 text-mint" :
-                            r.status === "COMPLETED" ? "bg-lilac/20 text-lilac" :
-                            r.status === "STUDENT_RATED" ? "bg-mint/20 text-mint" :
-                            r.status === "DISPUTED" ? "bg-red-100 text-red-600" : "bg-sun/20 text-sun"
-                          )}>
-                            {r.statusLabel}
-                          </span>
-                          {r.faculty && (
-                            <span className="rounded-full bg-lilac/25 text-purple-900 border border-lilac/40 px-2.5 py-0.5 text-xs font-black flex items-center gap-1">
-                              🏛️ {r.faculty} {r.university ? `(${r.university})` : ""}
-                            </span>
-                          )}
-                        </div>
-                        <h3 className="text-lg font-black text-ink mt-1 flex flex-wrap items-center gap-2">
-                          <span>
-                            {r.subject && r.subject !== r.topic ? (
-                              <>
-                                {r.subject} — <span className="text-coral font-bold">{r.topic}</span>
-                              </>
-                            ) : (
-                              <span className="text-coral font-bold">{r.subject || r.topic}</span>
-                            )}
-                          </span>
-                          {r.faculty && (
-                            <span className="rounded-xl bg-purple-100 text-purple-900 border border-purple-300 px-2.5 py-0.5 text-xs font-bold inline-flex items-center gap-1 shadow-sm">
-                              🏛️ {r.faculty}
-                            </span>
-                          )}
-                        </h3>
-                      </div>
-                      <div className="text-left">
-                        <div className="text-xs font-bold text-ink/40">الميزانية الأصلية</div>
-                        <div className="text-lg font-black text-coral">{r.budget} ج.م</div>
-                      </div>
-                    </div>
+            const filteredRequests = requests.filter((r) => {
+              if (selectedFacultyFilter !== "ALL" && r.faculty !== selectedFacultyFilter) return false;
+              if (selectedSubjectFilter !== "ALL" && r.subject !== selectedSubjectFilter) return false;
+              if (selectedYearFilter !== "ALL" && r.academicYear !== selectedYearFilter) return false;
+              if (searchQuery.trim()) {
+                const q = searchQuery.trim().toLowerCase();
+                const match = `${r.subject} ${r.topic} ${r.faculty || ""} ${r.academicYear || ""} ${r.description} ${r.statusLabel}`.toLowerCase();
+                if (!match.includes(q)) return false;
+              }
+              return true;
+            });
 
-                    <p className="text-xs text-ink/70 leading-relaxed">
-                      {r.description}
+            const activeFiltersCount =
+              (selectedFacultyFilter !== "ALL" ? 1 : 0) +
+              (selectedSubjectFilter !== "ALL" ? 1 : 0) +
+              (selectedYearFilter !== "ALL" ? 1 : 0) +
+              (searchQuery.trim() ? 1 : 0);
+
+            return (
+              <div className="space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-sand bg-white p-6 shadow-sm">
+                  <div>
+                    <h1 className="text-2xl font-black text-ink">📋 جميع طلباتي واستغاثاتي الأكاديمية</h1>
+                    <p className="text-sm text-ink/60">
+                      تتبع حالة كل طلب، راجع عروض التفاوض من المدرسين، وفلتر زنقاتك بالكلية أو المادة أو السنة.
                     </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowFilterPanel(!showFilterPanel)}
+                      className={`rounded-full px-5 py-2.5 text-xs font-black transition flex items-center gap-2 shadow-sm ${
+                        activeFiltersCount > 0
+                          ? "bg-coral text-white shadow-coral/25"
+                          : "border border-sand bg-cream/60 text-ink hover:bg-sand/50"
+                      }`}
+                    >
+                      <Filter className="h-4 w-4" />
+                      <span>فلترة الطلبات</span>
+                      {activeFiltersCount > 0 && (
+                        <span className="rounded-full bg-white text-coral px-2 py-0.5 text-[11px] font-black">
+                          {activeFiltersCount}
+                        </span>
+                      )}
+                    </button>
+                    <Link
+                      href="/requests/new"
+                      className="rounded-full bg-coral px-5 py-2.5 text-xs font-black text-white hover:bg-coralDark transition shadow"
+                    >
+                      + انشر طلب جديد
+                    </Link>
+                  </div>
+                </div>
 
-                    {r.negotiations && r.negotiations.length > 0 && (
-                      <div className="space-y-3 rounded-2xl border-2 border-coral/30 bg-coral/5 p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="text-xs font-black text-ink flex items-center gap-2">
-                            <span>🤝</span>
-                            <span>عروض التفاوض المقدمة من المدرسين ({r.negotiations.length})</span>
-                          </div>
-                          {r.negotiations.some(n => n.status === "PENDING") && (
-                            <span className="rounded-full bg-coral px-2.5 py-0.5 text-[10px] font-black text-white animate-pulse">
-                              بانتظار ردك ⏳
-                            </span>
-                          )}
-                        </div>
-
-                        {r.negotiations.map((negotiation) => (
-                          <div
-                            key={negotiation.id}
-                            className={
-                              "flex flex-col gap-3 rounded-2xl border p-4 transition md:flex-row md:items-center md:justify-between " +
-                              (negotiation.status === "PENDING"
-                                ? "border-coral bg-white shadow-sm"
-                                : negotiation.status === "ACCEPTED"
-                                  ? "border-mint/40 bg-mint/5"
-                                  : "border-sand bg-white/60 opacity-60")
-                            }
-                          >
-                            <div className="space-y-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Link
-                                  href={`/tutor/${negotiation.tutorId}`}
-                                  target="_blank"
-                                  className="group/tutor flex items-center gap-1.5 rounded-xl bg-sand/30 hover:bg-coral/15 px-2.5 py-1 transition"
-                                  title="انقر لعرض بروفايل المدرس وتقييماته ومواده"
-                                >
-                                  <span className="text-base">👨‍🏫</span>
-                                  <span className="text-sm font-black text-ink group-hover/tutor:text-coral underline-offset-2 group-hover/tutor:underline">
-                                    {negotiation.tutorName}
-                                  </span>
-                                  <span className="text-[10px] font-bold text-coral opacity-80">(عرض البروفايل ↗)</span>
-                                </Link>
-                                <span
-                                  className={
-                                    "rounded-full px-2 py-0.5 text-[10px] font-black " +
-                                    (negotiation.status === "PENDING"
-                                      ? negotiation.isDirectAgreement
-                                        ? "bg-mint/20 text-mint"
-                                        : "bg-amber-100 text-amber-700"
-                                      : negotiation.status === "ACCEPTED"
-                                        ? "bg-mint/20 text-mint"
-                                        : "bg-red-100 text-red-600")
-                                  }
-                                >
-                                  {negotiation.status === "PENDING"
-                                    ? negotiation.isDirectAgreement
-                                      ? "موافق على السعر والميعاد المطلوب ✅"
-                                      : "عرض تفاوض 🤝"
-                                    : negotiation.status === "ACCEPTED"
-                                      ? "تم قبول هذا العرض ✓"
-                                      : "تم الرفض ✕"}
-                                </span>
-                              </div>
-                              <div className="text-xs text-ink/70 flex flex-wrap items-center gap-3 pt-1">
-                                <span>
-                                  {negotiation.isDirectAgreement ? (
-                                    <>السعر المتفق عليه: <strong className="text-mint text-sm font-black">{negotiation.proposedAmountEGP} ج.م</strong></>
-                                  ) : (
-                                    <>السعر المقترح: <strong className="text-coral text-sm font-black">{negotiation.proposedAmountEGP} ج.م</strong> <span className="text-ink/40 text-[11px] mr-1">(الميزانية: {r.budget} ج.م)</span></>
-                                  )}
-                                </span>
-                                <span>•</span>
-                                <span>
-                                  الموعد: <strong className="text-ink font-black">{negotiation.proposedTime}</strong>
-                                </span>
-                              </div>
-                            </div>
-
-                            {negotiation.status === "PENDING" && (
-                              <div className="flex items-center gap-2 shrink-0">
-                                <button
-                                  onClick={() => handleRespondToNegotiation(r.id, negotiation.id, "ACCEPT")}
-                                  className={
-                                    "rounded-full px-4 py-2 text-xs font-black text-white hover:brightness-95 transition shadow-sm " +
-                                    (negotiation.isDirectAgreement ? "bg-mint" : "bg-coral")
-                                  }
-                                >
-                                  {negotiation.isDirectAgreement ? "اختيار المدرس وتأكيد الحصة 🎯" : "قبول التفاوض وتأكيد الحجز ✓"}
-                                </button>
-                                <button
-                                  onClick={() => handleRespondToNegotiation(r.id, negotiation.id, "REJECT")}
-                                  className="rounded-full border border-sand px-3 py-2 text-xs font-bold text-ink/70 hover:bg-sand/40 transition"
-                                >
-                                  رفض ✕
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                {/* Filter Panel (الكلية • المادة • السنة الدراسية) */}
+                <div className="rounded-3xl border border-sand bg-white p-6 shadow-sm space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sand/60 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Sliders className="h-4 w-4 text-coral" />
+                      <h3 className="text-sm font-black text-ink">تصفية وبحث طلباتي</h3>
+                    </div>
+                    {activeFiltersCount > 0 && (
+                      <button
+                        onClick={() => {
+                          setSelectedFacultyFilter("ALL");
+                          setSelectedSubjectFilter("ALL");
+                          setSelectedYearFilter("ALL");
+                          setSearchQuery("");
+                        }}
+                        className="text-xs font-bold text-coral hover:underline"
+                      >
+                        إعادة ضبط الفلاتر ↺
+                      </button>
                     )}
+                  </div>
 
-                    {/* Visual Progress Steps */}
-                    <div className="py-2">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-ink/50 mb-1">
-                        <span>1. نشر الطلب</span>
-                        <span>2. ترشيح المدرسين</span>
-                        <span>3. تأكيد الحجز</span>
-                        <span>4. الشرح المباشر</span>
-                        <span>5. التقييم والمكافأة</span>
-                      </div>
-                      <div className="h-2 w-full rounded-full bg-sand overflow-hidden">
-                        <div
-                          className="h-full bg-coral transition-all duration-500"
-                          style={{
-                            width:
-                              r.status === "DRAFT" ? "20%" :
-                              r.status === "MATCHING" ? "40%" :
-                              r.status === "CONFIRMED" ? "60%" :
-                              r.status === "IN_PROGRESS" ? "80%" : "100%",
-                          }}
-                        />
-                      </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {/* Faculty Filter */}
+                    <div>
+                      <label className="block text-xs font-bold text-ink/70 mb-1 flex items-center gap-1">
+                        <span>🏛️ الكلية / التخصص</span>
+                      </label>
+                      <select
+                        value={selectedFacultyFilter}
+                        onChange={(e) => setSelectedFacultyFilter(e.target.value)}
+                        className="w-full rounded-2xl border border-sand bg-cream/40 p-2.5 text-xs font-bold text-ink outline-none focus:border-coral transition"
+                      >
+                        <option value="ALL">جميع الكليات ({availableFaculties.length})</option>
+                        {availableFaculties.map((f) => (
+                          <option key={f} value={f}>{f}</option>
+                        ))}
+                      </select>
                     </div>
 
-                    {/* Action Footers */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-sand/60">
-                      <div className="text-xs text-ink/60">
-                        {r.selectedTutor ? (
-                          <span>المدرس المعتمد: <strong className="text-ink">{r.selectedTutor.name}</strong></span>
-                        ) : (
-                          <span>المدرس: <strong className="text-sun">جاري المطابقة</strong></span>
-                        )}
-                      </div>
+                    {/* Subject Filter */}
+                    <div>
+                      <label className="block text-xs font-bold text-ink/70 mb-1 flex items-center gap-1">
+                        <span>📚 المادة الدراسية</span>
+                      </label>
+                      <select
+                        value={selectedSubjectFilter}
+                        onChange={(e) => setSelectedSubjectFilter(e.target.value)}
+                        className="w-full rounded-2xl border border-sand bg-cream/40 p-2.5 text-xs font-bold text-ink outline-none focus:border-coral transition"
+                      >
+                        <option value="ALL">جميع المواد ({availableSubjects.length})</option>
+                        {availableSubjects.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                      <div className="flex items-center gap-2">
-                        {r.status === "COMPLETED" && (
-                          <button
-                            onClick={() => setRatingReq(r)}
-                            className="rounded-full bg-sun px-4 py-1.5 text-xs font-black text-ink hover:brightness-95 transition shadow-sm"
-                          >
-                            ⭐ قيّم المدرس واكسب +20 نقطة
-                          </button>
-                        )}
+                    {/* Academic Year Filter */}
+                    <div>
+                      <label className="block text-xs font-bold text-ink/70 mb-1 flex items-center gap-1">
+                        <span>🎓 السنة الدراسية / الفرقة</span>
+                      </label>
+                      <select
+                        value={selectedYearFilter}
+                        onChange={(e) => setSelectedYearFilter(e.target.value)}
+                        className="w-full rounded-2xl border border-sand bg-cream/40 p-2.5 text-xs font-bold text-ink outline-none focus:border-coral transition"
+                      >
+                        <option value="ALL">جميع الفرق والسنين</option>
+                        {availableYears.map((y) => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                        
-
-                        {r.status !== "DISPUTED" && (
-                          <button
-                            onClick={() => setDisputeReq(r)}
-                            className="rounded-full border border-sand text-ink/50 px-3 py-1 text-[11px] font-bold hover:text-red-500 hover:border-red-200 transition"
-                          >
-                            إبلاغ عن مشكلة
-                          </button>
-                        )}
-                      </div>
+                    {/* Search query */}
+                    <div>
+                      <label className="block text-xs font-bold text-ink/70 mb-1 flex items-center gap-1">
+                        <Search className="h-3 w-3 text-ink/50" />
+                        <span>بحث بالكلمات</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="ابحث في طلباتك..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full rounded-2xl border border-sand bg-cream/40 p-2.5 text-xs font-bold text-ink outline-none focus:border-coral transition"
+                      />
                     </div>
                   </div>
-                ))}
+
+                  {/* Active Filter Badges */}
+                  {activeFiltersCount > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-sand/40">
+                      <span className="text-[11px] font-bold text-ink/50">الفلاتر المطبقة:</span>
+                      {selectedFacultyFilter !== "ALL" && (
+                        <span className="rounded-full bg-purple-100 text-purple-900 border border-purple-200 px-2.5 py-0.5 text-xs font-bold flex items-center gap-1">
+                          <span>🏛️ {selectedFacultyFilter}</span>
+                          <button onClick={() => setSelectedFacultyFilter("ALL")} className="text-[10px] hover:text-red-600">✕</button>
+                        </span>
+                      )}
+                      {selectedSubjectFilter !== "ALL" && (
+                        <span className="rounded-full bg-coral/15 text-coral border border-coral/30 px-2.5 py-0.5 text-xs font-bold flex items-center gap-1">
+                          <span>📚 {selectedSubjectFilter}</span>
+                          <button onClick={() => setSelectedSubjectFilter("ALL")} className="text-[10px] hover:text-red-600">✕</button>
+                        </span>
+                      )}
+                      {selectedYearFilter !== "ALL" && (
+                        <span className="rounded-full bg-mint/15 text-mint border border-mint/30 px-2.5 py-0.5 text-xs font-bold flex items-center gap-1">
+                          <span>🎓 {selectedYearFilter}</span>
+                          <button onClick={() => setSelectedYearFilter("ALL")} className="text-[10px] hover:text-red-600">✕</button>
+                        </span>
+                      )}
+                      {searchQuery.trim() && (
+                        <span className="rounded-full bg-amber-100 text-amber-900 border border-amber-200 px-2.5 py-0.5 text-xs font-bold flex items-center gap-1">
+                          <span>🔍 "{searchQuery}"</span>
+                          <button onClick={() => setSearchQuery("")} className="text-[10px] hover:text-red-600">✕</button>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {filteredRequests.length > 0 ? (
+                  <div className="space-y-4">
+                    {filteredRequests.map((r) => (
+                      <div key={r.id} className="rounded-3xl border border-sand bg-white p-6 shadow-sm space-y-4 transition hover:shadow-md">
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sand pb-4">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <code className="font-mono text-xs font-bold text-ink/60 bg-ink/5 px-2 py-0.5 rounded">
+                                {r.id}
+                              </code>
+                              <span className={"rounded-full px-3 py-0.5 text-xs font-black " + (
+                                r.status === "CONFIRMED" ? "bg-mint/20 text-mint" :
+                                r.status === "COMPLETED" ? "bg-lilac/20 text-lilac" :
+                                r.status === "STUDENT_RATED" ? "bg-mint/20 text-mint" :
+                                r.status === "DISPUTED" ? "bg-red-100 text-red-600" : "bg-sun/20 text-sun"
+                              )}>
+                                {r.statusLabel}
+                              </span>
+                              {r.faculty && (
+                                <span className="rounded-full bg-lilac/25 text-purple-900 border border-lilac/40 px-2.5 py-0.5 text-xs font-black flex items-center gap-1">
+                                  🏛️ {r.faculty} {r.university ? `(${r.university})` : ""}
+                                </span>
+                              )}
+                              {r.academicYear && (
+                                <span className="rounded-full bg-amber-500/15 text-amber-900 border border-amber-500/30 px-2.5 py-0.5 text-xs font-black flex items-center gap-1">
+                                  🎓 {r.academicYear}
+                                </span>
+                              )}
+                            </div>
+                            <h3 className="text-lg font-black text-ink mt-1 flex flex-wrap items-center gap-2">
+                              <span>
+                                {r.subject && r.subject !== r.topic ? (
+                                  <>
+                                    {r.subject} — <span className="text-coral font-bold">{r.topic}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-coral font-bold">{r.subject || r.topic}</span>
+                                )}
+                              </span>
+                              {r.faculty && (
+                                <span className="rounded-xl bg-purple-100 text-purple-900 border border-purple-300 px-2.5 py-0.5 text-xs font-bold inline-flex items-center gap-1 shadow-sm">
+                                  🏛️ {r.faculty}
+                                </span>
+                              )}
+                              {r.academicYear && (
+                                <span className="rounded-xl bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 text-xs font-bold inline-flex items-center gap-1 shadow-sm">
+                                  🎓 {r.academicYear}
+                                </span>
+                              )}
+                            </h3>
+                          </div>
+                          <div className="text-left">
+                            <div className="text-xs font-bold text-ink/40">الميزانية الأصلية</div>
+                            <div className="text-lg font-black text-coral">{r.budget} ج.م</div>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-ink/70 leading-relaxed">
+                          {r.description}
+                        </p>
+
+                        {r.negotiations && r.negotiations.length > 0 && (
+                          <div className="space-y-3 rounded-2xl border-2 border-coral/30 bg-coral/5 p-4">
+                            <div className="flex items-center justify-between">
+                              <div className="text-xs font-black text-ink flex items-center gap-2">
+                                <span>🤝</span>
+                                <span>عروض التفاوض المقدمة من المدرسين ({r.negotiations.length})</span>
+                              </div>
+                              {r.negotiations.some(n => n.status === "PENDING") && (
+                                <span className="rounded-full bg-coral px-2.5 py-0.5 text-[10px] font-black text-white animate-pulse">
+                                  بانتظار ردك ⏳
+                                </span>
+                              )}
+                            </div>
+
+                            {r.negotiations.map((negotiation) => (
+                              <div
+                                key={negotiation.id}
+                                className={
+                                  "flex flex-col gap-3 rounded-2xl border p-4 transition md:flex-row md:items-center md:justify-between " +
+                                  (negotiation.status === "PENDING"
+                                    ? "border-coral bg-white shadow-sm"
+                                    : negotiation.status === "ACCEPTED"
+                                      ? "border-mint/40 bg-mint/5"
+                                      : "border-sand bg-white/60 opacity-60")
+                                }
+                              >
+                                <div className="space-y-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Link
+                                      href={`/tutor/${negotiation.tutorId}`}
+                                      target="_blank"
+                                      className="group/tutor flex items-center gap-1.5 rounded-xl bg-sand/30 hover:bg-coral/15 px-2.5 py-1 transition"
+                                      title="انقر لعرض بروفايل المدرس وتقييماته ومواده"
+                                    >
+                                      <span className="text-base">👨‍🏫</span>
+                                      <span className="text-sm font-black text-ink group-hover/tutor:text-coral underline-offset-2 group-hover/tutor:underline">
+                                        {negotiation.tutorName}
+                                      </span>
+                                      <span className="text-[10px] font-bold text-coral opacity-80">(عرض البروفايل ↗)</span>
+                                    </Link>
+                                    <span
+                                      className={
+                                        "rounded-full px-2 py-0.5 text-[10px] font-black " +
+                                        (negotiation.status === "PENDING"
+                                          ? negotiation.isDirectAgreement
+                                            ? "bg-mint/20 text-mint"
+                                            : "bg-amber-100 text-amber-700"
+                                          : negotiation.status === "ACCEPTED"
+                                            ? "bg-mint/20 text-mint"
+                                            : "bg-red-100 text-red-600")
+                                      }
+                                    >
+                                      {negotiation.status === "PENDING"
+                                        ? negotiation.isDirectAgreement
+                                          ? "موافق على السعر والميعاد المطلوب ✅"
+                                          : "عرض تفاوض 🤝"
+                                        : negotiation.status === "ACCEPTED"
+                                          ? "تم قبول هذا العرض ✓"
+                                          : "تم الرفض ✕"}
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-ink/70 flex flex-wrap items-center gap-3 pt-1">
+                                    <span>
+                                      {negotiation.isDirectAgreement ? (
+                                        <>السعر المتفق عليه: <strong className="text-mint text-sm font-black">{negotiation.proposedAmountEGP} ج.م</strong></>
+                                      ) : (
+                                        <>السعر المقترح: <strong className="text-coral text-sm font-black">{negotiation.proposedAmountEGP} ج.م</strong> <span className="text-ink/40 text-[11px] mr-1">(الميزانية: {r.budget} ج.م)</span></>
+                                      )}
+                                    </span>
+                                    <span>•</span>
+                                    <span>
+                                      الموعد: <strong className="text-ink font-black">{negotiation.proposedTime}</strong>
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {negotiation.status === "PENDING" && (
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <button
+                                      onClick={() => handleRespondToNegotiation(r.id, negotiation.id, "ACCEPT")}
+                                      className={
+                                        "rounded-full px-4 py-2 text-xs font-black text-white hover:brightness-95 transition shadow-sm " +
+                                        (negotiation.isDirectAgreement ? "bg-mint" : "bg-coral")
+                                      }
+                                    >
+                                      {negotiation.isDirectAgreement ? "اختيار المدرس وتأكيد الحصة 🎯" : "قبول التفاوض وتأكيد الحجز ✓"}
+                                    </button>
+                                    <button
+                                      onClick={() => handleRespondToNegotiation(r.id, negotiation.id, "REJECT")}
+                                      className="rounded-full border border-sand px-3 py-2 text-xs font-bold text-ink/70 hover:bg-sand/40 transition"
+                                    >
+                                      رفض ✕
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Visual Progress Steps */}
+                        <div className="py-2">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-ink/50 mb-1">
+                            <span>1. نشر الطلب</span>
+                            <span>2. ترشيح المدرسين</span>
+                            <span>3. تأكيد الحجز</span>
+                            <span>4. الشرح المباشر</span>
+                            <span>5. التقييم والمكافأة</span>
+                          </div>
+                          <div className="h-2 w-full rounded-full bg-sand overflow-hidden">
+                            <div
+                              className="h-full bg-coral transition-all duration-500"
+                              style={{
+                                width:
+                                  r.status === "DRAFT" ? "20%" :
+                                  r.status === "MATCHING" ? "40%" :
+                                  r.status === "CONFIRMED" ? "60%" :
+                                  r.status === "IN_PROGRESS" ? "80%" : "100%",
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Action Footers */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-sand/60">
+                          <div className="text-xs text-ink/60">
+                            {r.selectedTutor ? (
+                              <span>المدرس المعتمد: <strong className="text-ink">{r.selectedTutor.name}</strong></span>
+                            ) : (
+                              <span>المدرس: <strong className="text-sun">جاري المطابقة</strong></span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {r.status === "COMPLETED" && (
+                              <button
+                                onClick={() => setRatingReq(r)}
+                                className="rounded-full bg-sun px-4 py-1.5 text-xs font-black text-ink hover:brightness-95 transition shadow-sm"
+                              >
+                                ⭐ قيّم المدرس واكسب +20 نقطة
+                              </button>
+                            )}
+
+                            {r.status !== "DISPUTED" && (
+                              <button
+                                onClick={() => setDisputeReq(r)}
+                                className="rounded-full border border-sand text-ink/50 px-3 py-1 text-[11px] font-bold hover:text-red-500 hover:border-red-200 transition"
+                              >
+                                إبلاغ عن مشكلة
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-3xl border border-dashed border-sand bg-white p-12 text-center shadow-sm space-y-3">
+                    <div className="text-3xl">🔍</div>
+                    <h3 className="text-base font-black text-ink">لا توجد طلبات مطابقة للفلاتر المحددة</h3>
+                    <p className="text-xs text-ink/60 max-w-sm mx-auto">
+                      جرب تغيير الكلية أو المادة أو مسح الفلاتر لعرض جميع طلباتك.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setSelectedFacultyFilter("ALL");
+                        setSelectedSubjectFilter("ALL");
+                        setSelectedYearFilter("ALL");
+                        setSearchQuery("");
+                      }}
+                      className="rounded-full bg-coral px-5 py-2 text-xs font-black text-white hover:bg-coralDark shadow transition"
+                    >
+                      إعادة ضبط الفلاتر ↺
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ========================================================
               NAV: SCHEDULE (جدول مواعيد الحصص)

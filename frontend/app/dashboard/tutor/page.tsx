@@ -16,6 +16,10 @@ import {
   Sparkles,
   ArrowUpRight,
   Sliders,
+  Filter,
+  Search,
+  GraduationCap,
+  BookOpen,
   DollarSign,
   UserCheck,
   Building,
@@ -36,6 +40,7 @@ interface LeadItem {
   student: string;
   university: string;
   faculty: string;
+  academicYear?: string;
   mode: "ONLINE" | "IN_PERSON";
   budget: number;
   urgency: "LOW" | "MEDIUM" | "HIGH" | "ASAP";
@@ -170,6 +175,7 @@ function extractRequestMetadata(request: any) {
   let topic = request?.topic?.name;
   let faculty = request?.faculty?.name || request?.student?.studentProfile?.facultyName || "";
   let university = request?.university?.name || request?.student?.studentProfile?.universityName || "";
+  let academicYear = "";
   const desc = (request?.description || "").trim();
 
   // 1. Extract faculty if in description: [الكلية: ...]
@@ -184,19 +190,43 @@ function extractRequestMetadata(request: any) {
     university = uniMatch[1].trim();
   }
 
-  // 3. Extract subject if between [brackets] and not a location/faculty/uni tag
+  // 3. Extract academic year: [السنة الدراسية: ...] or [الفرقة: ...] or from profile/request
+  const yearMatch = desc.match(/\[(?:السنة الدراسية|الفرقة|السنة):\s*([^\]]+)\]/);
+  if (yearMatch) {
+    academicYear = yearMatch[1].trim();
+  } else if (request?.academicYear) {
+    const num = Number(request.academicYear);
+    if (num === 1) academicYear = "الفرقة الأولى";
+    else if (num === 2) academicYear = "الفرقة الثانية";
+    else if (num === 3) academicYear = "الفرقة الثالثة";
+    else if (num === 4) academicYear = "الفرقة الرابعة";
+    else if (num === 5) academicYear = "الفرقة الخامسة";
+    else academicYear = `الفرقة ${num}`;
+  } else if (request?.student?.studentProfile?.academicYear) {
+    const num = Number(request.student.studentProfile.academicYear);
+    if (num === 1) academicYear = "الفرقة الأولى";
+    else if (num === 2) academicYear = "الفرقة الثانية";
+    else if (num === 3) academicYear = "الفرقة الثالثة";
+    else if (num === 4) academicYear = "الفرقة الرابعة";
+    else if (num === 5) academicYear = "الفرقة الخامسة";
+    else academicYear = `الفرقة ${num}`;
+  } else if (request?.student?.studentProfile?.gradeLevel) {
+    academicYear = request.student.studentProfile.gradeLevel;
+  }
+
+  // 4. Extract subject if between [brackets] and not a location/faculty/uni/year tag
   if (!subject) {
     const bracketMatches = [...desc.matchAll(/\[([^\]]+)\]/g)];
     for (const match of bracketMatches) {
       const tag = match[1].trim();
-      if (!tag.startsWith("مكان الحضور") && !tag.startsWith("الكلية:") && !tag.startsWith("الجامعة:")) {
+      if (!tag.startsWith("مكان الحضور") && !tag.startsWith("الكلية:") && !tag.startsWith("الجامعة:") && !tag.startsWith("السنة الدراسية:") && !tag.startsWith("الفرقة:") && !tag.startsWith("السنة:")) {
         subject = tag;
         break;
       }
     }
   }
 
-  // 4. Extract topic if between (parentheses)
+  // 5. Extract topic if between (parentheses)
   if (!topic) {
     const parenMatch = desc.match(/\(([^)]+)\)/);
     if (parenMatch) {
@@ -204,7 +234,7 @@ function extractRequestMetadata(request: any) {
     }
   }
 
-  // 5. If subject still not found, check known subject keywords
+  // 6. If subject still not found, check known subject keywords
   if (!subject) {
     const lowerDesc = desc.toLowerCase();
     for (const sub of KNOWN_SUBJECTS) {
@@ -215,16 +245,19 @@ function extractRequestMetadata(request: any) {
     }
   }
 
-  // 6. Clean remaining description
+  // 7. Clean remaining description
   const cleanDesc = desc
     .replace(/\[مكان الحضور المعتمد:[^\]]+\]/g, "")
     .replace(/\[الكلية:[^\]]+\]/g, "")
     .replace(/\[الجامعة:[^\]]+\]/g, "")
+    .replace(/\[السنة الدراسية:[^\]]+\]/g, "")
+    .replace(/\[الفرقة:[^\]]+\]/g, "")
+    .replace(/\[السنة:[^\]]+\]/g, "")
     .replace(/\[[^\]]+\]/g, "")
     .replace(/\([^)]+\)/g, "")
     .trim();
 
-  // 7. Fallback for topic
+  // 8. Fallback for topic
   if (!topic) {
     if (cleanDesc) {
       const parts = cleanDesc.split(/[-–—،,\n]/).map((p: string) => p.trim()).filter(Boolean);
@@ -235,7 +268,7 @@ function extractRequestMetadata(request: any) {
   const finalTopic = topic || (cleanDesc ? cleanDesc.slice(0, 40) : "شرح ومراجعة");
   const finalSubject = subject || "";
 
-  // 8. Infer faculty if missing or generic
+  // 9. Infer faculty if missing or generic
   if (!faculty || faculty === "كلية غير محددة" || faculty.trim() === "") {
     if (finalSubject && SUBJECT_TO_FACULTY[finalSubject]) {
       faculty = SUBJECT_TO_FACULTY[finalSubject];
@@ -267,11 +300,16 @@ function extractRequestMetadata(request: any) {
     university = "جامعة المنصورة";
   }
 
+  if (!academicYear) {
+    academicYear = "الفرقة الأولى";
+  }
+
   return {
     subject: finalSubject,
     topic: finalTopic,
     faculty,
     university,
+    academicYear,
     fullTitle: finalSubject && finalSubject !== finalTopic ? `${finalSubject} — ${finalTopic}` : (finalSubject || finalTopic),
   };
 }
@@ -287,6 +325,13 @@ export default function TutorDashboardPage() {
   const [workshopEnrollments, setWorkshopEnrollments] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
   const [tutorRatingAvg, setTutorRatingAvg] = useState<number>(5.0);
+
+  // Filter state for SOS Leads (Radar)
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [selectedFacultyFilter, setSelectedFacultyFilter] = useState("ALL");
+  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState("ALL");
+  const [selectedYearFilter, setSelectedYearFilter] = useState("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Earnings
   const [clearedEarnings, setClearedEarnings] = useState(0);
@@ -392,7 +437,7 @@ export default function TutorDashboardPage() {
       const leadsData = await leadsResponse.json();
       setLeads(leadsData.map((request: any): LeadItem => {
         const myNeg = (request.negotiations ?? [])[0] ?? null;
-        const { subject, topic, faculty, university } = extractRequestMetadata(request);
+        const { subject, topic, faculty, university, academicYear } = extractRequestMetadata(request);
         return {
           id: request.id,
           subject,
@@ -400,6 +445,7 @@ export default function TutorDashboardPage() {
           student: request.student?.fullName ?? "طالب",
           university: university || request.university?.name || "جامعة غير محددة",
           faculty: faculty || request.faculty?.name || "كلية غير محددة",
+          academicYear,
           mode: request.teachingMode,
           budget: request.budgetEGP ?? 0,
           urgency: request.urgency ?? "MEDIUM",
@@ -1220,136 +1266,332 @@ export default function TutorDashboardPage() {
           {/* ========================================================
               TAB 2: LEADS & OPPORTUNITIES RADAR
           ======================================================== */}
-          {activeTab === "leads" && (
-            <div className="space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-sand bg-white p-6 shadow-sm">
-                <div>
-                  <h1 className="text-2xl font-black text-ink">🔎 رادار طلبات واستغاثات الطلاب</h1>
-                  <p className="text-sm text-ink/60">
-                    طلبات منشورة حالياً تطابق تخصصك (كيمياء وفيزياء ورياضيات). يمكنك قبول الطلب فوراً أو تقديم عرضك.
-                  </p>
+          {activeTab === "leads" && (() => {
+            const availableFaculties = Array.from(new Set(leads.map(l => l.faculty).filter(Boolean)));
+            const availableSubjects = Array.from(new Set(leads.map(l => l.subject).filter(Boolean)));
+            const availableYears = Array.from(new Set(leads.map(l => l.academicYear).filter(Boolean)));
+
+            const filteredLeads = leads.filter((l) => {
+              if (selectedFacultyFilter !== "ALL" && l.faculty !== selectedFacultyFilter) return false;
+              if (selectedSubjectFilter !== "ALL" && l.subject !== selectedSubjectFilter) return false;
+              if (selectedYearFilter !== "ALL" && l.academicYear !== selectedYearFilter) return false;
+              if (searchQuery.trim()) {
+                const q = searchQuery.trim().toLowerCase();
+                const match = `${l.subject} ${l.topic} ${l.faculty} ${l.academicYear} ${l.description} ${l.student} ${l.university}`.toLowerCase();
+                if (!match.includes(q)) return false;
+              }
+              return true;
+            });
+
+            const activeFiltersCount =
+              (selectedFacultyFilter !== "ALL" ? 1 : 0) +
+              (selectedSubjectFilter !== "ALL" ? 1 : 0) +
+              (selectedYearFilter !== "ALL" ? 1 : 0) +
+              (searchQuery.trim() ? 1 : 0);
+
+            return (
+              <div className="space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-sand bg-white p-6 shadow-sm">
+                  <div>
+                    <h1 className="text-2xl font-black text-ink">🔎 رادار طلبات واستغاثات الطلاب</h1>
+                    <p className="text-sm text-ink/60">
+                      استكشف جميع الاستغاثات والطلبات المنشورة للطلاب، وفلترها بسهولة حسب الكلية، المادة، أو السنة الدراسية.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowFilterPanel(!showFilterPanel)}
+                      className={`rounded-full px-5 py-2.5 text-xs font-black transition flex items-center gap-2 shadow-sm ${
+                        activeFiltersCount > 0
+                          ? "bg-coral text-white shadow-coral/25"
+                          : "border border-sand bg-cream/60 text-ink hover:bg-sand/50"
+                      }`}
+                    >
+                      <Filter className="h-4 w-4" />
+                      <span>فلترة الاستغاثات</span>
+                      {activeFiltersCount > 0 && (
+                        <span className="rounded-full bg-white text-coral px-2 py-0.5 text-[11px] font-black">
+                          {activeFiltersCount}
+                        </span>
+                      )}
+                    </button>
+                    <span className="rounded-full bg-coral/10 px-3.5 py-1.5 text-xs font-black text-coral">
+                      {filteredLeads.filter(l => l.status === "OPEN").length} من أصل {leads.filter(l => l.status === "OPEN").length} متاحة
+                    </span>
+                  </div>
                 </div>
-                <span className="rounded-full bg-coral/10 px-3.5 py-1.5 text-xs font-black text-coral">
-                  {leads.filter(l => l.status === "OPEN").length} فرصة متاحة الآن
-                </span>
-              </div>
 
-              <div className="space-y-4">
-                {leads.map((l) => (
-                  <div key={l.id} className="rounded-3xl border border-sand bg-white p-6 shadow-sm space-y-4">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div className="space-y-1.5 flex-1 min-w-[280px]">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <code className="font-mono text-xs font-bold text-ink/60 bg-ink/5 px-2 py-0.5 rounded">
-                            {l.id}
-                          </code>
-                          <span className="text-xs font-bold text-ink/40">{l.postedAt}</span>
-                          <span className={"rounded-full px-2.5 py-0.5 text-xs font-black " + (
-                            l.urgency === "ASAP" ? "bg-red-500 text-white" :
-                            l.urgency === "HIGH" ? "bg-orange-500 text-white" : "bg-sun/20 text-sun"
-                          )}>
-                            {l.urgency === "ASAP" ? "عاجل جداً 🚨" : `أولوية: ${l.urgency}`}
-                          </span>
-                          <span className="rounded-full bg-ink/5 px-2.5 py-0.5 text-xs font-bold text-ink/70">
-                            {l.mode === "ONLINE" ? "💻 أونلاين" : "🏫 حضوري"}
-                          </span>
-                          {l.faculty && (
-                            <span className="rounded-full bg-lilac/25 text-purple-900 border border-lilac/40 px-2.5 py-0.5 text-xs font-black flex items-center gap-1">
-                              🏛️ {l.faculty} {l.university ? `(${l.university})` : ""}
-                            </span>
-                          )}
-                          <span className="rounded-full bg-mint/15 px-3 py-0.5 text-xs font-black text-mint flex items-center gap-1">
-                            ⏰ ميعاد الحصة: {l.preferredTime}
-                          </span>
-                        </div>
+                {/* Filter Panel (الكلية • المادة • السنة الدراسية) */}
+                <div className="rounded-3xl border border-sand bg-white p-6 shadow-sm space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sand/60 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Sliders className="h-4 w-4 text-coral" />
+                      <h3 className="text-sm font-black text-ink">تصفية وبحث الاستغاثات الأكاديمية</h3>
+                    </div>
+                    {activeFiltersCount > 0 && (
+                      <button
+                        onClick={() => {
+                          setSelectedFacultyFilter("ALL");
+                          setSelectedSubjectFilter("ALL");
+                          setSelectedYearFilter("ALL");
+                          setSearchQuery("");
+                        }}
+                        className="text-xs font-bold text-coral hover:underline"
+                      >
+                        إعادة ضبط الفلاتر ↺
+                      </button>
+                    )}
+                  </div>
 
-                        <h3 className="text-lg font-black text-ink flex flex-wrap items-center gap-2">
-                          <span>
-                            {l.subject && l.subject !== l.topic ? (
-                              <>
-                                {l.subject} — <span className="text-coral font-bold">{l.topic}</span>
-                              </>
-                            ) : (
-                              <span className="text-coral font-bold">{l.subject || l.topic}</span>
-                            )}
-                          </span>
-                          {l.faculty && (
-                            <span className="rounded-xl bg-purple-100 text-purple-900 border border-purple-300 px-2.5 py-0.5 text-xs font-bold inline-flex items-center gap-1 shadow-sm">
-                              🏛️ {l.faculty}
-                            </span>
-                          )}
-                        </h3>
-                        <p className="text-xs text-ink/70 leading-relaxed max-w-2xl">
-                          {l.description}
-                        </p>
-                        <div className="text-xs text-ink/60 font-semibold pt-1">
-                          الطالب: <strong>{l.student}</strong> ({l.university} — {l.faculty})
-                        </div>
-                      </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {/* Faculty Filter */}
+                    <div>
+                      <label className="block text-xs font-bold text-ink/70 mb-1 flex items-center gap-1">
+                        <span>🏛️ الكلية / التخصص</span>
+                      </label>
+                      <select
+                        value={selectedFacultyFilter}
+                        onChange={(e) => setSelectedFacultyFilter(e.target.value)}
+                        className="w-full rounded-2xl border border-sand bg-cream/40 p-2.5 text-xs font-bold text-ink outline-none focus:border-coral transition"
+                      >
+                        <option value="ALL">جميع الكليات ({availableFaculties.length})</option>
+                        {availableFaculties.map((f) => (
+                          <option key={f} value={f}>{f}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                      <div className="text-left space-y-2 shrink-0 min-w-[220px]">
-                        <div className="text-xs font-bold text-ink/40">سعر الطالب المعروض</div>
-                        <div className="text-2xl font-black text-mint">{l.budget} ج.م</div>
-                        <div className="text-[11px] text-ink/40">صافي ربحك: {Math.round(l.budget * 0.8)} ج.م (بعد عمولة %20)</div>
+                    {/* Subject Filter */}
+                    <div>
+                      <label className="block text-xs font-bold text-ink/70 mb-1 flex items-center gap-1">
+                        <span>📚 المادة الدراسية</span>
+                      </label>
+                      <select
+                        value={selectedSubjectFilter}
+                        onChange={(e) => setSelectedSubjectFilter(e.target.value)}
+                        className="w-full rounded-2xl border border-sand bg-cream/40 p-2.5 text-xs font-bold text-ink outline-none focus:border-coral transition"
+                      >
+                        <option value="ALL">جميع المواد ({availableSubjects.length})</option>
+                        {availableSubjects.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                        {l.myResponse ? (
-                          <div className="rounded-2xl border border-sand bg-cream/50 p-3 text-right space-y-1 text-xs">
-                            <div className="flex items-center gap-1 font-black text-ink">
-                              {l.myResponse.isDirect ? (
-                                <span className="text-mint">✅ أرسلت موافقة بالسعر المطلوب</span>
-                              ) : (
-                                <span className="text-coral">🤝 أرسلت عرض تفاوض: {l.myResponse.proposedAmountEGP} ج.م</span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-ink/60">
-                              بانتظار مراجعة وتأكيد الطالب ⏳
-                            </p>
-                            <button
-                              onClick={() => {
-                                setNegotiationLead(l);
-                                setNegotiationAmount(l.myResponse?.proposedAmountEGP ?? l.budget);
-                                setNegotiationTime(l.myResponse?.proposedTime ?? l.preferredTime ?? "");
-                              }}
-                              className="text-[11px] font-bold text-coral underline hover:text-coralDark mt-1 block"
-                            >
-                              تعديل عرض التفاوض ✍️
-                            </button>
-                          </div>
-                        ) : !tutorIsVerified ? (
-                          <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3 text-right text-xs font-bold text-amber-800 shadow-sm">
-                            🔒 حسابك قيد مراجعة واعتماد الإدارة — ستتمكن من الرد وقبول الحصص فور اعتماد حسابك.
-                          </div>
-                        ) : l.status === "OPEN" ? (
-                          <div className="space-y-2 pt-1">
-                            <button
-                              onClick={() => setAcceptModalLead(l)}
-                              className="w-full rounded-full bg-mint px-5 py-2.5 text-xs font-black text-white hover:brightness-95 transition shadow-md shadow-mint/25"
-                            >
-                              موافقة على الحصة (بنفس السعر والميعاد) ✓
-                            </button>
-                            <button
-                              onClick={() => {
-                                setNegotiationLead(l);
-                                setNegotiationAmount(l.budget);
-                                setNegotiationTime(l.preferredTime ?? "غداً 05:00 م");
-                              }}
-                              className="w-full rounded-full border border-coral text-coral bg-white px-5 py-2 text-xs font-black hover:bg-coral/10 transition shadow-sm"
-                            >
-                              تفاوض (تعديل السعر أو الميعاد) 🤝
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="inline-block rounded-full bg-mint/15 px-4 py-1.5 text-xs font-black text-mint">
-                            تم إنهاء الطلب ✓
-                          </span>
-                        )}
-                      </div>
+                    {/* Academic Year Filter */}
+                    <div>
+                      <label className="block text-xs font-bold text-ink/70 mb-1 flex items-center gap-1">
+                        <span>🎓 السنة الدراسية / الفرقة</span>
+                      </label>
+                      <select
+                        value={selectedYearFilter}
+                        onChange={(e) => setSelectedYearFilter(e.target.value)}
+                        className="w-full rounded-2xl border border-sand bg-cream/40 p-2.5 text-xs font-bold text-ink outline-none focus:border-coral transition"
+                      >
+                        <option value="ALL">جميع الفرق والسنين</option>
+                        {availableYears.map((y) => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Search query */}
+                    <div>
+                      <label className="block text-xs font-bold text-ink/70 mb-1 flex items-center gap-1">
+                        <Search className="h-3 w-3 text-ink/50" />
+                        <span>بحث بالكلمات / الشابتر</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="ابحث عن شابتر أو كلمة..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full rounded-2xl border border-sand bg-cream/40 p-2.5 text-xs font-bold text-ink outline-none focus:border-coral transition"
+                      />
                     </div>
                   </div>
-                ))}
+
+                  {/* Active Filter Badges */}
+                  {activeFiltersCount > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-sand/40">
+                      <span className="text-[11px] font-bold text-ink/50">الفلاتر المطبقة:</span>
+                      {selectedFacultyFilter !== "ALL" && (
+                        <span className="rounded-full bg-purple-100 text-purple-900 border border-purple-200 px-2.5 py-0.5 text-xs font-bold flex items-center gap-1">
+                          <span>🏛️ {selectedFacultyFilter}</span>
+                          <button onClick={() => setSelectedFacultyFilter("ALL")} className="text-[10px] hover:text-red-600">✕</button>
+                        </span>
+                      )}
+                      {selectedSubjectFilter !== "ALL" && (
+                        <span className="rounded-full bg-coral/15 text-coral border border-coral/30 px-2.5 py-0.5 text-xs font-bold flex items-center gap-1">
+                          <span>📚 {selectedSubjectFilter}</span>
+                          <button onClick={() => setSelectedSubjectFilter("ALL")} className="text-[10px] hover:text-red-600">✕</button>
+                        </span>
+                      )}
+                      {selectedYearFilter !== "ALL" && (
+                        <span className="rounded-full bg-mint/15 text-mint border border-mint/30 px-2.5 py-0.5 text-xs font-bold flex items-center gap-1">
+                          <span>🎓 {selectedYearFilter}</span>
+                          <button onClick={() => setSelectedYearFilter("ALL")} className="text-[10px] hover:text-red-600">✕</button>
+                        </span>
+                      )}
+                      {searchQuery.trim() && (
+                        <span className="rounded-full bg-amber-100 text-amber-900 border border-amber-200 px-2.5 py-0.5 text-xs font-bold flex items-center gap-1">
+                          <span>🔍 "{searchQuery}"</span>
+                          <button onClick={() => setSearchQuery("")} className="text-[10px] hover:text-red-600">✕</button>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Leads List */}
+                {filteredLeads.length > 0 ? (
+                  <div className="space-y-4">
+                    {filteredLeads.map((l) => (
+                      <div key={l.id} className="rounded-3xl border border-sand bg-white p-6 shadow-sm space-y-4 transition hover:shadow-md">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div className="space-y-1.5 flex-1 min-w-[280px]">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <code className="font-mono text-xs font-bold text-ink/60 bg-ink/5 px-2 py-0.5 rounded">
+                                {l.id}
+                              </code>
+                              <span className="text-xs font-bold text-ink/40">{l.postedAt}</span>
+                              <span className={"rounded-full px-2.5 py-0.5 text-xs font-black " + (
+                                l.urgency === "ASAP" ? "bg-red-500 text-white" :
+                                l.urgency === "HIGH" ? "bg-orange-500 text-white" : "bg-sun/20 text-sun"
+                              )}>
+                                {l.urgency === "ASAP" ? "عاجل جداً 🚨" : `أولوية: ${l.urgency}`}
+                              </span>
+                              <span className="rounded-full bg-ink/5 px-2.5 py-0.5 text-xs font-bold text-ink/70">
+                                {l.mode === "ONLINE" ? "💻 أونلاين" : "🏫 حضوري"}
+                              </span>
+                              {l.faculty && (
+                                <span className="rounded-full bg-lilac/25 text-purple-900 border border-lilac/40 px-2.5 py-0.5 text-xs font-black flex items-center gap-1">
+                                  🏛️ {l.faculty} {l.university ? `(${l.university})` : ""}
+                                </span>
+                              )}
+                              {l.academicYear && (
+                                <span className="rounded-full bg-amber-500/15 text-amber-900 border border-amber-500/30 px-2.5 py-0.5 text-xs font-black flex items-center gap-1">
+                                  🎓 {l.academicYear}
+                                </span>
+                              )}
+                              <span className="rounded-full bg-mint/15 px-3 py-0.5 text-xs font-black text-mint flex items-center gap-1">
+                                ⏰ ميعاد الحصة: {l.preferredTime}
+                              </span>
+                            </div>
+
+                            <h3 className="text-lg font-black text-ink flex flex-wrap items-center gap-2">
+                              <span>
+                                {l.subject && l.subject !== l.topic ? (
+                                  <>
+                                    {l.subject} — <span className="text-coral font-bold">{l.topic}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-coral font-bold">{l.subject || l.topic}</span>
+                                )}
+                              </span>
+                              {l.faculty && (
+                                <span className="rounded-xl bg-purple-100 text-purple-900 border border-purple-300 px-2.5 py-0.5 text-xs font-bold inline-flex items-center gap-1 shadow-sm">
+                                  🏛️ {l.faculty}
+                                </span>
+                              )}
+                              {l.academicYear && (
+                                <span className="rounded-xl bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 text-xs font-bold inline-flex items-center gap-1 shadow-sm">
+                                  🎓 {l.academicYear}
+                                </span>
+                              )}
+                            </h3>
+                            <p className="text-xs text-ink/70 leading-relaxed max-w-2xl">
+                              {l.description}
+                            </p>
+                            <div className="text-xs text-ink/60 font-semibold pt-1">
+                              الطالب: <strong>{l.student}</strong> ({l.university} — {l.faculty} {l.academicYear ? `• ${l.academicYear}` : ""})
+                            </div>
+                          </div>
+
+                          <div className="text-left space-y-2 shrink-0 min-w-[220px]">
+                            <div className="text-xs font-bold text-ink/40">سعر الطالب المعروض</div>
+                            <div className="text-2xl font-black text-mint">{l.budget} ج.م</div>
+                            <div className="text-[11px] text-ink/40">صافي ربحك: {Math.round(l.budget * 0.8)} ج.م (بعد عمولة %20)</div>
+
+                            {l.myResponse ? (
+                              <div className="rounded-2xl border border-sand bg-cream/50 p-3 text-right space-y-1 text-xs">
+                                <div className="flex items-center gap-1 font-black text-ink">
+                                  {l.myResponse.isDirect ? (
+                                    <span className="text-mint">✅ أرسلت موافقة بالسعر المطلوب</span>
+                                  ) : (
+                                    <span className="text-coral">🤝 أرسلت عرض تفاوض: {l.myResponse.proposedAmountEGP} ج.م</span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-ink/60">
+                                  بانتظار مراجعة وتأكيد الطالب ⏳
+                                </p>
+                                <button
+                                  onClick={() => {
+                                    setNegotiationLead(l);
+                                    setNegotiationAmount(l.myResponse?.proposedAmountEGP ?? l.budget);
+                                    setNegotiationTime(l.myResponse?.proposedTime ?? l.preferredTime ?? "");
+                                  }}
+                                  className="text-[11px] font-bold text-coral underline hover:text-coralDark mt-1 block"
+                                >
+                                  تعديل عرض التفاوض ✍️
+                                </button>
+                              </div>
+                            ) : !tutorIsVerified ? (
+                              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3 text-right text-xs font-bold text-amber-800 shadow-sm">
+                                🔒 حسابك قيد مراجعة واعتماد الإدارة — ستتمكن من الرد وقبول الحصص فور اعتماد حسابك.
+                              </div>
+                            ) : l.status === "OPEN" ? (
+                              <div className="space-y-2 pt-1">
+                                <button
+                                  onClick={() => setAcceptModalLead(l)}
+                                  className="w-full rounded-full bg-mint px-5 py-2.5 text-xs font-black text-white hover:brightness-95 transition shadow-md shadow-mint/25"
+                                >
+                                  موافقة على الحصة (بنفس السعر والميعاد) ✓
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setNegotiationLead(l);
+                                    setNegotiationAmount(l.budget);
+                                    setNegotiationTime(l.preferredTime ?? "غداً 05:00 م");
+                                  }}
+                                  className="w-full rounded-full border border-coral text-coral bg-white px-5 py-2 text-xs font-black hover:bg-coral/10 transition shadow-sm"
+                                >
+                                  تفاوض (تعديل السعر أو الميعاد) 🤝
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="inline-block rounded-full bg-mint/15 px-4 py-1.5 text-xs font-black text-mint">
+                                تم إنهاء الطلب ✓
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-3xl border border-dashed border-sand bg-white p-12 text-center shadow-sm space-y-3">
+                    <div className="text-3xl">🔍</div>
+                    <h3 className="text-base font-black text-ink">لا توجد استغاثات مطابقة للفلاتر المحددة</h3>
+                    <p className="text-xs text-ink/60 max-w-sm mx-auto">
+                      جرب تغيير الكلية أو المادة أو مسح الفلاتر لعرض جميع الاستغاثات المتاحة.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setSelectedFacultyFilter("ALL");
+                        setSelectedSubjectFilter("ALL");
+                        setSelectedYearFilter("ALL");
+                        setSearchQuery("");
+                      }}
+                      className="rounded-full bg-coral px-5 py-2 text-xs font-black text-white hover:bg-coralDark shadow transition"
+                    >
+                      إعادة ضبط الفلاتر ↺
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ========================================================
               TAB 3: BOOKINGS & SCHEDULE

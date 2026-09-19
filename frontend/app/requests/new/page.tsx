@@ -21,6 +21,16 @@ const UNIVERSITIES = [
   "جامعة المنصورة",
 ];
 
+const ACADEMIC_YEARS = [
+  "الفرقة الإعدادية",
+  "الفرقة الأولى",
+  "الفرقة الثانية",
+  "الفرقة الثالثة",
+  "الفرقة الرابعة",
+  "الفرقة الخامسة",
+  "سنة الامتياز / دراسات عليا",
+];
+
 const DEFAULT_LOCATIONS = [
   { id: "loc-1", name: "مقر فك زنقة التعليمي — المنصورة (بجوار كلية هندسة)", address: "شارع جيهان، المنصورة", details: "قاعات مكيفة ومجهزة بالسبورات الذكية وواي فاي سريع" },
   { id: "loc-2", name: "مساحة عمل كروان (Karawan Workspace) — حي الجامعة", address: "أمام بوابة جامعة المنصورة الرئيسية", details: "غرف دراسة هادئة وخدمة مشروبات" },
@@ -36,6 +46,7 @@ export default function NewRequestPage() {
 
   const [university, setUniversity] = useState("جامعة القاهرة");
   const [faculty, setFaculty] = useState("");
+  const [academicYear, setAcademicYear] = useState("الفرقة الأولى");
   const [selectedSubject, setSelectedSubject] = useState(initialSubject);
   const [customSubject, setCustomSubject] = useState("");
   const [topic, setTopic] = useState("");
@@ -88,7 +99,10 @@ export default function NewRequestPage() {
       const cleanTopic = topic.trim();
       const facultyTag = faculty.trim() ? `[الكلية: ${faculty.trim()}] ` : "";
       const universityTag = university.trim() ? `[الجامعة: ${university.trim()}] ` : "";
-      const fullDescription = `${locationText}${universityTag}${facultyTag}[${actualSubject}] (${cleanTopic}) ${description}`;
+      const yearTag = academicYear ? `[السنة الدراسية: ${academicYear}] ` : "";
+      const fullDescription = `${locationText}${universityTag}${facultyTag}${yearTag}[${actualSubject}] (${cleanTopic}) ${description}`;
+
+      const yearNum = academicYear.includes("أولى") ? 1 : academicYear.includes("ثانية") ? 2 : academicYear.includes("ثالثة") ? 3 : academicYear.includes("رابعة") ? 4 : academicYear.includes("خامسة") ? 5 : 1;
 
       // POST /api/v1/requests
       const reqPayload = {
@@ -96,6 +110,7 @@ export default function NewRequestPage() {
         teachingMode: mode,
         budgetEGP: budget,
         urgency: urgency,
+        academicYear: yearNum,
         preferredAt: preferredDateTime ? new Date(preferredDateTime).toISOString() : new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
       };
 
@@ -175,8 +190,8 @@ export default function NewRequestPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6 rounded-3xl border border-sand dark:border-slate-700 bg-white dark:bg-slate-800/80 p-6 sm:p-8 shadow-sm">
-            {/* University & Faculty */}
-            <div className="grid gap-4 sm:grid-cols-2">
+            {/* University, Faculty & Academic Year */}
+            <div className="grid gap-4 sm:grid-cols-3">
               <div>
                 <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">الجامعة</label>
                 <select
@@ -191,15 +206,28 @@ export default function NewRequestPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">الكلية أو القسم</label>
+                <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">الكلية أو التخصص</label>
                 <input
                   type="text"
                   required
-                  placeholder="مثال: كلية العلوم — قسم الكيمياء"
+                  placeholder="مثال: كلية الهندسة / العلوم"
                   value={faculty}
                   onChange={(e) => setFaculty(e.target.value)}
                   className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-3.5 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral dark:placeholder:text-slate-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">السنة الدراسية / الفرقة</label>
+                <select
+                  value={academicYear}
+                  onChange={(e) => setAcademicYear(e.target.value)}
+                  className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-3.5 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral dark:focus:border-coral"
+                >
+                  {ACADEMIC_YEARS.map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
