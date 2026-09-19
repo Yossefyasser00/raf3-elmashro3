@@ -185,6 +185,16 @@ const KNOWN_SUBJECTS: Array<{ keywords: string[]; name: string }> = [
   { keywords: ["تشريح", "anatomy", "طب", "عظام", "أعصاب"], name: "علم التشريح (Anatomy)" },
 ];
 
+const SUBJECT_TO_FACULTY: Record<string, string> = {
+  "الكيمياء العضوية": "كلية العلوم / الصيدلة",
+  "الفيزياء الهندسية": "كلية الهندسة",
+  "الرياضيات التطبيقية": "كلية الهندسة / العلوم",
+  "خوارزميات وبرمجة": "كلية الحاسبات والمعلومات / الهندسة",
+  "علم الأدوية (فارما)": "كلية الصيدلة",
+  "المحاسبة والمالية": "كلية التجارة وإدارة الأعمال",
+  "علم التشريح (Anatomy)": "كلية الطب البشري",
+};
+
 function extractRequestMetadata(request: any) {
   let subject = request?.subject?.name;
   let topic = request?.topic?.name;
@@ -254,6 +264,38 @@ function extractRequestMetadata(request: any) {
 
   const finalTopic = topic || (cleanDesc ? cleanDesc.slice(0, 40) : "شرح ومراجعة");
   const finalSubject = subject || "";
+
+  // 8. Infer faculty if missing or generic
+  if (!faculty || faculty === "كلية غير محددة" || faculty.trim() === "") {
+    if (finalSubject && SUBJECT_TO_FACULTY[finalSubject]) {
+      faculty = SUBJECT_TO_FACULTY[finalSubject];
+    } else {
+      const lowerAll = (desc + " " + (finalSubject || "") + " " + (finalTopic || "")).toLowerCase();
+      if (lowerAll.includes("محاسب") || lowerAll.includes("مالي") || lowerAll.includes("اقتصاد") || lowerAll.includes("تجارة") || lowerAll.includes("accounting")) {
+        faculty = "كلية التجارة وإدارة الأعمال";
+      } else if (lowerAll.includes("فيزياء") || lowerAll.includes("هندس") || lowerAll.includes("ميكانيك") || lowerAll.includes("كهرب")) {
+        faculty = "كلية الهندسة";
+      } else if (lowerAll.includes("كيمياء") || lowerAll.includes("علوم") || lowerAll.includes("بيولوجي")) {
+        faculty = "كلية العلوم";
+      } else if (lowerAll.includes("برمج") || lowerAll.includes("حاسب") || lowerAll.includes("خوارزم") || lowerAll.includes("cs") || lowerAll.includes("it")) {
+        faculty = "كلية الحاسبات والمعلومات";
+      } else if (lowerAll.includes("فارما") || lowerAll.includes("أدوي") || lowerAll.includes("صيدل")) {
+        faculty = "كلية الصيدلة";
+      } else if (lowerAll.includes("تشريح") || lowerAll.includes("طب") || lowerAll.includes("anatomy") || lowerAll.includes("عظام")) {
+        faculty = "كلية الطب البشري";
+      } else if (lowerAll.includes("حقوق") || lowerAll.includes("قانون")) {
+        faculty = "كلية الحقوق";
+      } else if (lowerAll.includes("آداب") || lowerAll.includes("لغات") || lowerAll.includes("إنجليزي") || lowerAll.includes("ترجم")) {
+        faculty = "كلية الآداب والألسن";
+      } else {
+        faculty = "كلية عامة";
+      }
+    }
+  }
+
+  if (!university || university === "جامعة غير محددة" || university.trim() === "") {
+    university = "جامعة المنصورة";
+  }
 
   return {
     subject: finalSubject,

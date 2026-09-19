@@ -155,6 +155,16 @@ const KNOWN_SUBJECTS: Array<{ keywords: string[]; name: string }> = [
   { keywords: ["تشريح", "anatomy", "طب", "عظام", "أعصاب"], name: "علم التشريح (Anatomy)" },
 ];
 
+const SUBJECT_TO_FACULTY: Record<string, string> = {
+  "الكيمياء العضوية": "كلية العلوم / الصيدلة",
+  "الفيزياء الهندسية": "كلية الهندسة",
+  "الرياضيات التطبيقية": "كلية الهندسة / العلوم",
+  "خوارزميات وبرمجة": "كلية الحاسبات والمعلومات / الهندسة",
+  "علم الأدوية (فارما)": "كلية الصيدلة",
+  "المحاسبة والمالية": "كلية التجارة وإدارة الأعمال",
+  "علم التشريح (Anatomy)": "كلية الطب البشري",
+};
+
 function extractRequestMetadata(request: any) {
   let subject = request?.subject?.name;
   let topic = request?.topic?.name;
@@ -224,6 +234,38 @@ function extractRequestMetadata(request: any) {
 
   const finalTopic = topic || (cleanDesc ? cleanDesc.slice(0, 40) : "شرح ومراجعة");
   const finalSubject = subject || "";
+
+  // 8. Infer faculty if missing or generic
+  if (!faculty || faculty === "كلية غير محددة" || faculty.trim() === "") {
+    if (finalSubject && SUBJECT_TO_FACULTY[finalSubject]) {
+      faculty = SUBJECT_TO_FACULTY[finalSubject];
+    } else {
+      const lowerAll = (desc + " " + (finalSubject || "") + " " + (finalTopic || "")).toLowerCase();
+      if (lowerAll.includes("محاسب") || lowerAll.includes("مالي") || lowerAll.includes("اقتصاد") || lowerAll.includes("تجارة") || lowerAll.includes("accounting")) {
+        faculty = "كلية التجارة وإدارة الأعمال";
+      } else if (lowerAll.includes("فيزياء") || lowerAll.includes("هندس") || lowerAll.includes("ميكانيك") || lowerAll.includes("كهرب")) {
+        faculty = "كلية الهندسة";
+      } else if (lowerAll.includes("كيمياء") || lowerAll.includes("علوم") || lowerAll.includes("بيولوجي")) {
+        faculty = "كلية العلوم";
+      } else if (lowerAll.includes("برمج") || lowerAll.includes("حاسب") || lowerAll.includes("خوارزم") || lowerAll.includes("cs") || lowerAll.includes("it")) {
+        faculty = "كلية الحاسبات والمعلومات";
+      } else if (lowerAll.includes("فارما") || lowerAll.includes("أدوي") || lowerAll.includes("صيدل")) {
+        faculty = "كلية الصيدلة";
+      } else if (lowerAll.includes("تشريح") || lowerAll.includes("طب") || lowerAll.includes("anatomy") || lowerAll.includes("عظام")) {
+        faculty = "كلية الطب البشري";
+      } else if (lowerAll.includes("حقوق") || lowerAll.includes("قانون")) {
+        faculty = "كلية الحقوق";
+      } else if (lowerAll.includes("آداب") || lowerAll.includes("لغات") || lowerAll.includes("إنجليزي") || lowerAll.includes("ترجم")) {
+        faculty = "كلية الآداب والألسن";
+      } else {
+        faculty = "كلية عامة";
+      }
+    }
+  }
+
+  if (!university || university === "جامعة غير محددة" || university.trim() === "") {
+    university = "جامعة المنصورة";
+  }
 
   return {
     subject: finalSubject,
@@ -1211,9 +1253,9 @@ export default function TutorDashboardPage() {
                           <span className="rounded-full bg-ink/5 px-2.5 py-0.5 text-xs font-bold text-ink/70">
                             {l.mode === "ONLINE" ? "💻 أونلاين" : "🏫 حضوري"}
                           </span>
-                          {l.faculty && l.faculty !== "كلية غير محددة" && (
+                          {l.faculty && (
                             <span className="rounded-full bg-lilac/25 text-purple-900 border border-lilac/40 px-2.5 py-0.5 text-xs font-black flex items-center gap-1">
-                              🏛️ {l.faculty} {l.university && l.university !== "جامعة غير محددة" ? `(${l.university})` : ""}
+                              🏛️ {l.faculty} {l.university ? `(${l.university})` : ""}
                             </span>
                           )}
                           <span className="rounded-full bg-mint/15 px-3 py-0.5 text-xs font-black text-mint flex items-center gap-1">
@@ -1221,13 +1263,20 @@ export default function TutorDashboardPage() {
                           </span>
                         </div>
 
-                        <h3 className="text-lg font-black text-ink">
-                          {l.subject && l.subject !== l.topic ? (
-                            <>
-                              {l.subject} — <span className="text-coral font-bold">{l.topic}</span>
-                            </>
-                          ) : (
-                            <span className="text-coral font-bold">{l.subject || l.topic}</span>
+                        <h3 className="text-lg font-black text-ink flex flex-wrap items-center gap-2">
+                          <span>
+                            {l.subject && l.subject !== l.topic ? (
+                              <>
+                                {l.subject} — <span className="text-coral font-bold">{l.topic}</span>
+                              </>
+                            ) : (
+                              <span className="text-coral font-bold">{l.subject || l.topic}</span>
+                            )}
+                          </span>
+                          {l.faculty && (
+                            <span className="rounded-xl bg-purple-100 text-purple-900 border border-purple-300 px-2.5 py-0.5 text-xs font-bold inline-flex items-center gap-1 shadow-sm">
+                              🏛️ {l.faculty}
+                            </span>
                           )}
                         </h3>
                         <p className="text-xs text-ink/70 leading-relaxed max-w-2xl">
