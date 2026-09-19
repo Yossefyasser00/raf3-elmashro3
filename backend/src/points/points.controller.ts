@@ -1,4 +1,4 @@
-﻿import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req } from '@nestjs/common';
 import { Roles } from '../common/decorators/roles.decorator';
 import { PointsService } from './points.service';
 
@@ -9,6 +9,12 @@ export class PointsController {
   @Roles('STUDENT')
   @Get('my')
   getMyPoints(@Req() req: any) {
+    return this.pointsService.getMyPoints(req.user.id);
+  }
+
+  @Roles('STUDENT')
+  @Get('my-points')
+  getMyPointsAlias(@Req() req: any) {
     return this.pointsService.getMyPoints(req.user.id);
   }
 

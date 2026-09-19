@@ -1,4 +1,4 @@
-﻿import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../config/prisma.service';
 
 @Injectable()
@@ -14,12 +14,32 @@ export class PointsService {
     const transactions = await this.prisma.pointTransaction.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      take: 20,
+      take: 40,
     });
+
+    const redeemedCoupons = transactions
+      .filter((t) => t.refType === 'Coupon' && t.refId)
+      .map((t) => ({
+        code: t.refId!,
+        reason: t.reason,
+        createdAt: t.createdAt,
+        points: Math.abs(t.points),
+        type: t.refId!.startsWith('WS-FREE')
+          ? 'FREE_WORKSHOP'
+          : t.refId!.startsWith('QUIZ-FREE')
+            ? 'FREE_QUIZ'
+            : 'DISCOUNT_COUPON',
+        title: t.refId!.startsWith('WS-FREE')
+          ? 'تذكرة ورشة عمل مجانية'
+          : t.refId!.startsWith('QUIZ-FREE')
+            ? 'جلسة مراجعة كويز مجانية'
+            : 'كوبون خصم 50 ج.م على الجلسة',
+      }));
 
     return {
       pointsBalance: profile?.pointsBalance ?? 0,
       transactions,
+      redeemedCoupons,
     };
   }
 

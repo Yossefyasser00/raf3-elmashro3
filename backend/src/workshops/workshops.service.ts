@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../config/prisma.service';
 import { WorkshopStatus, WorkshopType } from '@prisma/client';
 import { YoutubeService } from './youtube.service';
@@ -206,12 +206,56 @@ export class WorkshopsService {
     });
   }
 
-  // Enroll in a workshop (free workshops are APPROVED immediately, paid workshops are PENDING admin approval)
-  async enrollWorkshop(workshopId: string, userId: string, paidWithPoints = false) {
+  // Enroll in a workshop (free workshops or paid-with-points/coupons are APPROVED immediately, paid workshops are PENDING admin approval)
+  async enrollWorkshop(workshopId: string, userId: string, paidWithPoints = false, couponCode?: string) {
     const workshop = await this.prisma.workshop.findUnique({ where: { id: workshopId } });
     if (!workshop) throw new NotFoundException('Workshop not found');
 
-    const status = workshop.type === WorkshopType.FREE || paidWithPoints ? 'APPROVED' : 'PENDING';
+    let isApproved = workshop.type === WorkshopType.FREE;
+
+    if (paidWithPoints) {
+      const profile = await this.prisma.studentProfile.findUnique({ where: { userId } });
+      const points = profile?.pointsBalance ?? 0;
+      if (points < 500) {
+        throw new BadRequestException(`رصيد نقاطك (${points} نقطة) غير كافٍ للاشتراك. تحتاج إلى 500 نقطة.`);
+      }
+
+      // Deduct 500 points
+      await this.prisma.$transaction([
+        this.prisma.studentProfile.update({
+          where: { userId },
+          data: { pointsBalance: { decrement: 500 } },
+        }),
+        this.prisma.pointTransaction.create({
+          data: {
+            userId,
+            points: -500,
+            reason: 'WORKSHOP_ENROLL_WITH_POINTS',
+            refType: 'Workshop',
+            refId: workshopId,
+          },
+        }),
+      ]);
+
+      isApproved = true;
+    } else if (couponCode && couponCode.trim()) {
+      const code = couponCode.trim().toUpperCase();
+      // Allow WS-FREE or coupon transactions
+      const validTx = await this.prisma.pointTransaction.findFirst({
+        where: {
+          userId,
+          refId: code,
+        },
+      });
+
+      if (!validTx && !code.startsWith('WS-FREE')) {
+        throw new BadRequestException('كود الكوبون غير صالح أو غير مخصص لتذاكر ورش العمل.');
+      }
+
+      isApproved = true;
+    }
+
+    const status = isApproved ? 'APPROVED' : 'PENDING';
 
     return this.prisma.workshopEnrollment.upsert({
       where: {
@@ -220,11 +264,11 @@ export class WorkshopsService {
       create: {
         workshopId,
         userId,
-        paidWithPoints,
+        paidWithPoints: paidWithPoints || !!couponCode,
         status,
       },
       update: {
-        paidWithPoints,
+        paidWithPoints: paidWithPoints || !!couponCode,
         status,
       },
       include: {

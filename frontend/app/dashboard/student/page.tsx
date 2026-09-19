@@ -295,6 +295,7 @@ export default function StudentDashboardPage() {
   >("overview");
   const [requests, setRequests] = useState<RequestItem[]>(INITIAL_REQUESTS);
   const [points, setPoints] = useState<number>(0);
+  const [redeemedCoupons, setRedeemedCoupons] = useState<any[]>([]);
   const [selectedReqForDetail, setSelectedReqForDetail] = useState<RequestItem | null>(null);
 
   // Chat state
@@ -435,7 +436,7 @@ export default function StudentDashboardPage() {
         }),
       );
 
-        // Fetch Live Points Balance
+        // Fetch Live Points Balance & Redeemed Coupons
         const pointsRes = await fetch(
           `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/points/my`,
           { headers: { Authorization: `Bearer ${token}` } },
@@ -443,6 +444,7 @@ export default function StudentDashboardPage() {
         if (pointsRes.ok) {
           const pointsData = await pointsRes.json();
           setPoints(pointsData.pointsBalance ?? 0);
+          setRedeemedCoupons(pointsData.redeemedCoupons ?? []);
         }
 
         // Fetch workshop enrollments for invoices
@@ -761,6 +763,18 @@ export default function StudentDashboardPage() {
       const data = await res.json();
       if (res.ok) {
         setPoints(data.newPointsBalance);
+        if (data.couponCode) {
+          setRedeemedCoupons((prev) => [
+            {
+              code: data.couponCode,
+              title: data.rewardSummary || rewardTitle,
+              type: rewardType,
+              createdAt: new Date().toISOString(),
+              points: cost,
+            },
+            ...prev,
+          ]);
+        }
         triggerToast(data.message || `🎉 مبروك! كود المكافأة: ${data.couponCode}`);
       } else {
         triggerToast(data.message || "تعذر استبدال المكافأة");
@@ -1977,6 +1991,65 @@ export default function StudentDashboardPage() {
                   </div>
                 ))}
               </div>
+
+              {/* Active Redeemed Coupons & Workshop Tickets */}
+              {redeemedCoupons.length > 0 && (
+                <div className="rounded-3xl border-2 border-mint/40 bg-gradient-to-br from-mint/10 via-white to-white p-6 shadow-sm space-y-4 animate-in fade-in">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-base font-black text-ink flex items-center gap-2">
+                      <span>🎟️</span>
+                      تذاكري وكوبوناتي المستبدلة الجاهزة للاستخدام ({redeemedCoupons.length})
+                    </h3>
+                    <span className="text-xs text-mint font-bold">جاهزة ومفعلة بحسابك ✓</span>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {redeemedCoupons.map((c, idx) => (
+                      <div
+                        key={idx}
+                        className="rounded-2xl border border-sand bg-cream/30 p-4 flex flex-col justify-between space-y-3 hover:border-mint transition"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="text-[10px] font-bold text-ink/50 block">
+                              {c.type === "FREE_WORKSHOP"
+                                ? "📚 تذكرة ورشة عمل"
+                                : c.type === "FREE_QUIZ"
+                                ? "📝 مراجعة كويز"
+                                : "🎟️ كوبون خصم"}
+                            </span>
+                            <h4 className="text-sm font-black text-ink mt-0.5">{c.title || "مكافأة فك زنقة"}</h4>
+                          </div>
+                          <code className="font-mono text-xs font-black bg-white px-2.5 py-1 rounded-xl border border-sand text-coral select-all">
+                            {c.code}
+                          </code>
+                        </div>
+
+                        <div className="pt-2 border-t border-sand/60 flex items-center justify-between gap-2">
+                          {c.type === "FREE_WORKSHOP" || c.code.startsWith("WS-FREE") ? (
+                            <Link
+                              href={`/workshops?coupon=${c.code}`}
+                              className="flex-1 rounded-full bg-mint py-2 text-center text-xs font-black text-white hover:brightness-95 transition shadow-sm"
+                            >
+                              تصفح ورش العمل واستخدم التذكرة ↗
+                            </Link>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(c.code);
+                                triggerToast("📋 تم نسخ كود الكوبون بنجاح!");
+                              }}
+                              className="flex-1 rounded-full bg-ink py-2 text-center text-xs font-black text-white hover:bg-coral transition"
+                            >
+                              نسخ الكود 📋
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Automatic Points Rules Card (قواعد النقاط والمكافآت التلقائية) */}
               <div className="rounded-3xl border border-sand bg-white p-6 shadow-sm space-y-4">

@@ -132,15 +132,18 @@ export class WorkshopsController {
     @Req() req: any,
     @Param('id') id: string,
     @Body('paidWithPoints') paidWithPoints?: boolean,
+    @Body('couponCode') couponCode?: string,
   ) {
-    return this.workshopsService.enrollWorkshop(id, req.user.id, paidWithPoints ?? false);
+    return this.workshopsService.enrollWorkshop(id, req.user.id, paidWithPoints ?? false, couponCode);
   }
 
   @Post(':id/pay')
   payWorkshop(
     @Req() req: any,
     @Param('id') id: string,
+    @Body('paidWithPoints') paidWithPoints?: boolean,
+    @Body('couponCode') couponCode?: string,
   ) {
-    return this.workshopsService.enrollWorkshop(id, req.user.id, false);
+    return this.workshopsService.enrollWorkshop(id, req.user.id, paidWithPoints ?? false, couponCode);
   }
 }
