@@ -393,7 +393,7 @@ export default function TutorDashboardPage() {
           } else if (reqStatus === "PAYMENT_PENDING") {
             statusText = "في انتظار الدفع";
           }
-          const { fullTitle } = extractSubjectAndTopic(booking.request);
+          const { fullTitle } = extractRequestMetadata(booking.request);
           return {
             id: booking.id,
             requestId: booking.request?.id ?? booking.id,

@@ -173,6 +173,8 @@ function printInvoice(inv: any) {
     </body></html>
   `);
   w.document.close();
+}
+
 const KNOWN_SUBJECTS: Array<{ keywords: string[]; name: string }> = [
   { keywords: ["كيمياء", "عضوية", "ألكين", "ألكان", "كيميائية"], name: "الكيمياء العضوية" },
   { keywords: ["فيزياء", "كيرشوف", "نيوتن", "كهربية", "مغناطيسية", "ديناميكا"], name: "الفيزياء الهندسية" },
