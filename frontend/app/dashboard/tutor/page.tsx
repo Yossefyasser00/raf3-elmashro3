@@ -449,7 +449,7 @@ export default function TutorDashboardPage() {
           urgency: request.urgency ?? "MEDIUM",
           postedAt: new Date(request.createdAt).toLocaleString("ar-EG"),
           preferredTime: request.preferredAt ? new Date(request.preferredAt).toLocaleString("ar-EG") : "موعد مرن / حسب الاتفاق",
-          description: request.description,
+          description: (request.description || "").replace(/\[(?:الكلية|الجامعة|السنة الدراسية|الفرقة|السنة|مكان الحضور المعتمد):[^\]]*\]\s*/g, "").replace(/\[([^\]]+)\]\s*/g, "").replace(/\(([^)]*)\)\s*/, "").trim(),
           status: request.status === "PUBLISHED" || request.status === "MATCHING" ? "OPEN" : "PASSED",
           myResponse: myNeg ? {
             id: myNeg.id,
@@ -1487,22 +1487,12 @@ export default function TutorDashboardPage() {
                                   <span className="text-coral font-bold">{l.subject || l.topic}</span>
                                 )}
                               </span>
-                              {l.faculty && (
-                                <span className="rounded-xl bg-purple-100 text-purple-900 border border-purple-300 px-2.5 py-0.5 text-xs font-bold inline-flex items-center gap-1 shadow-sm">
-                                  🏛️ {l.faculty}
-                                </span>
-                              )}
-                              {l.academicYear && (
-                                <span className="rounded-xl bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 text-xs font-bold inline-flex items-center gap-1 shadow-sm">
-                                  🎓 {l.academicYear}
-                                </span>
-                              )}
                             </h3>
                             <p className="text-xs text-ink/70 leading-relaxed max-w-2xl">
                               {l.description}
                             </p>
                             <div className="text-xs text-ink/60 font-semibold pt-1">
-                              الطالب: <strong>{l.student}</strong> ({l.university} — {l.faculty} {l.academicYear ? `• ${l.academicYear}` : ""})
+                              الطالب: <strong>{l.student}</strong>
                             </div>
                           </div>
 

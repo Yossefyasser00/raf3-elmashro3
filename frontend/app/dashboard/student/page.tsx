@@ -412,7 +412,7 @@ export default function StudentDashboardPage() {
               faculty,
               university,
               academicYear,
-              description: request.description,
+              description: (request.description || "").replace(/\[(?:الكلية|الجامعة|السنة الدراسية|الفرقة|السنة|مكان الحضور المعتمد):[^\]]*\]\s*/g, "").replace(/\[([^\]]+)\]\s*/g, "").replace(/\(([^)]*)\)\s*/, "").trim(),
               mode: request.teachingMode,
               budget: request.budgetEGP ?? 0,
               urgency: request.urgency ?? "MEDIUM",
@@ -1601,16 +1601,6 @@ export default function StudentDashboardPage() {
                                   <span className="text-coral font-bold">{r.subject || r.topic}</span>
                                 )}
                               </span>
-                              {r.faculty && (
-                                <span className="rounded-xl bg-purple-100 text-purple-900 border border-purple-300 px-2.5 py-0.5 text-xs font-bold inline-flex items-center gap-1 shadow-sm">
-                                  🏛️ {r.faculty}
-                                </span>
-                              )}
-                              {r.academicYear && (
-                                <span className="rounded-xl bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 text-xs font-bold inline-flex items-center gap-1 shadow-sm">
-                                  🎓 {r.academicYear}
-                                </span>
-                              )}
                             </h3>
                           </div>
                           <div className="text-left">
