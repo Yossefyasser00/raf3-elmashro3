@@ -477,23 +477,38 @@ const KNOWN_SUBJECTS: Array<{ keywords: string[]; name: string }> = [
   { keywords: ["تشريح", "anatomy", "طب", "عظام", "أعصاب"], name: "علم التشريح (Anatomy)" },
 ];
 
-function extractSubjectAndTopic(request: any) {
+function extractRequestMetadata(request: any) {
   let subject = request?.subject?.name;
   let topic = request?.topic?.name;
+  let faculty = request?.faculty?.name || request?.student?.studentProfile?.facultyName || "";
+  let university = request?.university?.name || request?.student?.studentProfile?.universityName || "";
   const desc = (request?.description || "").trim();
 
-  // 1. Extract subject if between [brackets] and not a location tag
+  // 1. Extract faculty if in description: [الكلية: ...]
+  const facultyMatch = desc.match(/\[الكلية:\s*([^\]]+)\]/);
+  if (facultyMatch) {
+    faculty = facultyMatch[1].trim();
+  }
+
+  // 2. Extract university if in description: [الجامعة: ...]
+  const uniMatch = desc.match(/\[الجامعة:\s*([^\]]+)\]/);
+  if (uniMatch) {
+    university = uniMatch[1].trim();
+  }
+
+  // 3. Extract subject if between [brackets] and not a location/faculty/uni tag
   if (!subject) {
     const bracketMatches = [...desc.matchAll(/\[([^\]]+)\]/g)];
     for (const match of bracketMatches) {
-      if (!match[1].startsWith("مكان الحضور")) {
-        subject = match[1].trim();
+      const tag = match[1].trim();
+      if (!tag.startsWith("مكان الحضور") && !tag.startsWith("الكلية:") && !tag.startsWith("الجامعة:")) {
+        subject = tag;
         break;
       }
     }
   }
 
-  // 2. Extract topic if between (parentheses)
+  // 4. Extract topic if between (parentheses)
   if (!topic) {
     const parenMatch = desc.match(/\(([^)]+)\)/);
     if (parenMatch) {
@@ -501,7 +516,7 @@ function extractSubjectAndTopic(request: any) {
     }
   }
 
-  // 3. If subject still not found, check known subject keywords
+  // 5. If subject still not found, check known subject keywords
   if (!subject) {
     const lowerDesc = desc.toLowerCase();
     for (const sub of KNOWN_SUBJECTS) {
@@ -512,14 +527,16 @@ function extractSubjectAndTopic(request: any) {
     }
   }
 
-  // 4. Clean remaining description
+  // 6. Clean remaining description
   const cleanDesc = desc
     .replace(/\[مكان الحضور المعتمد:[^\]]+\]/g, "")
+    .replace(/\[الكلية:[^\]]+\]/g, "")
+    .replace(/\[الجامعة:[^\]]+\]/g, "")
     .replace(/\[[^\]]+\]/g, "")
     .replace(/\([^)]+\)/g, "")
     .trim();
 
-  // 5. Fallback for topic
+  // 7. Fallback for topic
   if (!topic) {
     if (cleanDesc) {
       const parts = cleanDesc.split(/[-–—،,\n]/).map((p: string) => p.trim()).filter(Boolean);
@@ -533,18 +550,20 @@ function extractSubjectAndTopic(request: any) {
   return {
     subject: finalSubject,
     topic: finalTopic,
+    faculty,
+    university,
     fullTitle: finalSubject && finalSubject !== finalTopic ? `${finalSubject} — ${finalTopic}` : (finalSubject || finalTopic),
   };
 }
 
         setRequests(allRequests.map((request: any): StudentReq => {
-          const { subject, topic } = extractSubjectAndTopic(request);
+          const { subject, topic, faculty, university } = extractRequestMetadata(request);
           return {
             id: request.id,
             studentName: request.student?.fullName ?? "طالب غير معروف",
             studentEmail: request.student?.email ?? "",
-            university: request.university?.name ?? "غير محددة",
-            faculty: request.faculty?.name ?? "غير محددة",
+            university: university || request.university?.name || "غير محددة",
+            faculty: faculty || request.faculty?.name || "غير محددة",
             subject,
             topic,
             description: request.description,

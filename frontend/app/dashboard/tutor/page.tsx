@@ -155,23 +155,38 @@ const KNOWN_SUBJECTS: Array<{ keywords: string[]; name: string }> = [
   { keywords: ["تشريح", "anatomy", "طب", "عظام", "أعصاب"], name: "علم التشريح (Anatomy)" },
 ];
 
-function extractSubjectAndTopic(request: any) {
+function extractRequestMetadata(request: any) {
   let subject = request?.subject?.name;
   let topic = request?.topic?.name;
+  let faculty = request?.faculty?.name || request?.student?.studentProfile?.facultyName || "";
+  let university = request?.university?.name || request?.student?.studentProfile?.universityName || "";
   const desc = (request?.description || "").trim();
 
-  // 1. Extract subject if between [brackets] and not a location tag
+  // 1. Extract faculty if in description: [الكلية: ...]
+  const facultyMatch = desc.match(/\[الكلية:\s*([^\]]+)\]/);
+  if (facultyMatch) {
+    faculty = facultyMatch[1].trim();
+  }
+
+  // 2. Extract university if in description: [الجامعة: ...]
+  const uniMatch = desc.match(/\[الجامعة:\s*([^\]]+)\]/);
+  if (uniMatch) {
+    university = uniMatch[1].trim();
+  }
+
+  // 3. Extract subject if between [brackets] and not a location/faculty/uni tag
   if (!subject) {
     const bracketMatches = [...desc.matchAll(/\[([^\]]+)\]/g)];
     for (const match of bracketMatches) {
-      if (!match[1].startsWith("مكان الحضور")) {
-        subject = match[1].trim();
+      const tag = match[1].trim();
+      if (!tag.startsWith("مكان الحضور") && !tag.startsWith("الكلية:") && !tag.startsWith("الجامعة:")) {
+        subject = tag;
         break;
       }
     }
   }
 
-  // 2. Extract topic if between (parentheses)
+  // 4. Extract topic if between (parentheses)
   if (!topic) {
     const parenMatch = desc.match(/\(([^)]+)\)/);
     if (parenMatch) {
@@ -179,7 +194,7 @@ function extractSubjectAndTopic(request: any) {
     }
   }
 
-  // 3. If subject still not found, check known subject keywords
+  // 5. If subject still not found, check known subject keywords
   if (!subject) {
     const lowerDesc = desc.toLowerCase();
     for (const sub of KNOWN_SUBJECTS) {
@@ -190,14 +205,16 @@ function extractSubjectAndTopic(request: any) {
     }
   }
 
-  // 4. Clean remaining description
+  // 6. Clean remaining description
   const cleanDesc = desc
     .replace(/\[مكان الحضور المعتمد:[^\]]+\]/g, "")
+    .replace(/\[الكلية:[^\]]+\]/g, "")
+    .replace(/\[الجامعة:[^\]]+\]/g, "")
     .replace(/\[[^\]]+\]/g, "")
     .replace(/\([^)]+\)/g, "")
     .trim();
 
-  // 5. Fallback for topic
+  // 7. Fallback for topic
   if (!topic) {
     if (cleanDesc) {
       const parts = cleanDesc.split(/[-–—،,\n]/).map((p: string) => p.trim()).filter(Boolean);
@@ -211,6 +228,8 @@ function extractSubjectAndTopic(request: any) {
   return {
     subject: finalSubject,
     topic: finalTopic,
+    faculty,
+    university,
     fullTitle: finalSubject && finalSubject !== finalTopic ? `${finalSubject} — ${finalTopic}` : (finalSubject || finalTopic),
   };
 }
@@ -331,14 +350,14 @@ export default function TutorDashboardPage() {
       const leadsData = await leadsResponse.json();
       setLeads(leadsData.map((request: any): LeadItem => {
         const myNeg = (request.negotiations ?? [])[0] ?? null;
-        const { subject, topic } = extractSubjectAndTopic(request);
+        const { subject, topic, faculty, university } = extractRequestMetadata(request);
         return {
           id: request.id,
           subject,
           topic,
           student: request.student?.fullName ?? "طالب",
-          university: request.university?.name ?? "جامعة غير محددة",
-          faculty: request.faculty?.name ?? "كلية غير محددة",
+          university: university || request.university?.name || "جامعة غير محددة",
+          faculty: faculty || request.faculty?.name || "كلية غير محددة",
           mode: request.teachingMode,
           budget: request.budgetEGP ?? 0,
           urgency: request.urgency ?? "MEDIUM",
@@ -1192,13 +1211,24 @@ export default function TutorDashboardPage() {
                           <span className="rounded-full bg-ink/5 px-2.5 py-0.5 text-xs font-bold text-ink/70">
                             {l.mode === "ONLINE" ? "💻 أونلاين" : "🏫 حضوري"}
                           </span>
+                          {l.faculty && l.faculty !== "كلية غير محددة" && (
+                            <span className="rounded-full bg-lilac/25 text-purple-900 border border-lilac/40 px-2.5 py-0.5 text-xs font-black flex items-center gap-1">
+                              🏛️ {l.faculty} {l.university && l.university !== "جامعة غير محددة" ? `(${l.university})` : ""}
+                            </span>
+                          )}
                           <span className="rounded-full bg-mint/15 px-3 py-0.5 text-xs font-black text-mint flex items-center gap-1">
                             ⏰ ميعاد الحصة: {l.preferredTime}
                           </span>
                         </div>
 
                         <h3 className="text-lg font-black text-ink">
-                          {l.subject} — <span className="text-coral font-bold">{l.topic}</span>
+                          {l.subject && l.subject !== l.topic ? (
+                            <>
+                              {l.subject} — <span className="text-coral font-bold">{l.topic}</span>
+                            </>
+                          ) : (
+                            <span className="text-coral font-bold">{l.subject || l.topic}</span>
+                          )}
                         </h3>
                         <p className="text-xs text-ink/70 leading-relaxed max-w-2xl">
                           {l.description}

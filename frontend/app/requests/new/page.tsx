@@ -86,7 +86,9 @@ export default function NewRequestPage() {
 
       const actualSubject = selectedSubject === "مادة أخرى" ? (customSubject || "مادة دراسية") : selectedSubject;
       const cleanTopic = topic.trim();
-      const fullDescription = `${locationText}[${actualSubject}] (${cleanTopic}) ${description}`;
+      const facultyTag = faculty.trim() ? `[الكلية: ${faculty.trim()}] ` : "";
+      const universityTag = university.trim() ? `[الجامعة: ${university.trim()}] ` : "";
+      const fullDescription = `${locationText}${universityTag}${facultyTag}[${actualSubject}] (${cleanTopic}) ${description}`;
 
       // POST /api/v1/requests
       const reqPayload = {

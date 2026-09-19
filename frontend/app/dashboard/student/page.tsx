@@ -61,6 +61,8 @@ interface RequestItem {
   id: string;
   subject: string;
   topic: string;
+  faculty?: string;
+  university?: string;
   description: string;
   mode: "ONLINE" | "IN_PERSON";
   budget: number;
@@ -165,23 +167,38 @@ const KNOWN_SUBJECTS: Array<{ keywords: string[]; name: string }> = [
   { keywords: ["تشريح", "anatomy", "طب", "عظام", "أعصاب"], name: "علم التشريح (Anatomy)" },
 ];
 
-function extractSubjectAndTopic(request: any) {
+function extractRequestMetadata(request: any) {
   let subject = request?.subject?.name;
   let topic = request?.topic?.name;
+  let faculty = request?.faculty?.name || request?.student?.studentProfile?.facultyName || "";
+  let university = request?.university?.name || request?.student?.studentProfile?.universityName || "";
   const desc = (request?.description || "").trim();
 
-  // 1. Extract subject if between [brackets] and not a location tag
+  // 1. Extract faculty if in description: [الكلية: ...]
+  const facultyMatch = desc.match(/\[الكلية:\s*([^\]]+)\]/);
+  if (facultyMatch) {
+    faculty = facultyMatch[1].trim();
+  }
+
+  // 2. Extract university if in description: [الجامعة: ...]
+  const uniMatch = desc.match(/\[الجامعة:\s*([^\]]+)\]/);
+  if (uniMatch) {
+    university = uniMatch[1].trim();
+  }
+
+  // 3. Extract subject if between [brackets] and not a location/faculty/uni tag
   if (!subject) {
     const bracketMatches = [...desc.matchAll(/\[([^\]]+)\]/g)];
     for (const match of bracketMatches) {
-      if (!match[1].startsWith("مكان الحضور")) {
-        subject = match[1].trim();
+      const tag = match[1].trim();
+      if (!tag.startsWith("مكان الحضور") && !tag.startsWith("الكلية:") && !tag.startsWith("الجامعة:")) {
+        subject = tag;
         break;
       }
     }
   }
 
-  // 2. Extract topic if between (parentheses)
+  // 4. Extract topic if between (parentheses)
   if (!topic) {
     const parenMatch = desc.match(/\(([^)]+)\)/);
     if (parenMatch) {
@@ -189,7 +206,7 @@ function extractSubjectAndTopic(request: any) {
     }
   }
 
-  // 3. If subject still not found, check known subject keywords
+  // 5. If subject still not found, check known subject keywords
   if (!subject) {
     const lowerDesc = desc.toLowerCase();
     for (const sub of KNOWN_SUBJECTS) {
@@ -200,14 +217,16 @@ function extractSubjectAndTopic(request: any) {
     }
   }
 
-  // 4. Clean remaining description
+  // 6. Clean remaining description
   const cleanDesc = desc
     .replace(/\[مكان الحضور المعتمد:[^\]]+\]/g, "")
+    .replace(/\[الكلية:[^\]]+\]/g, "")
+    .replace(/\[الجامعة:[^\]]+\]/g, "")
     .replace(/\[[^\]]+\]/g, "")
     .replace(/\([^)]+\)/g, "")
     .trim();
 
-  // 5. Fallback for topic
+  // 7. Fallback for topic
   if (!topic) {
     if (cleanDesc) {
       const parts = cleanDesc.split(/[-–—،,\n]/).map((p: string) => p.trim()).filter(Boolean);
@@ -221,6 +240,8 @@ function extractSubjectAndTopic(request: any) {
   return {
     subject: finalSubject,
     topic: finalTopic,
+    faculty,
+    university,
     fullTitle: finalSubject && finalSubject !== finalTopic ? `${finalSubject} — ${finalTopic}` : (finalSubject || finalTopic),
   };
 }
@@ -295,11 +316,13 @@ export default function StudentDashboardPage() {
         const data = await response.json();
         setRequests(
           data.map((request: any): RequestItem => {
-            const { subject, topic } = extractSubjectAndTopic(request);
+            const { subject, topic, faculty, university } = extractRequestMetadata(request);
             return {
               id: request.id,
               subject,
               topic,
+              faculty,
+              university,
               description: request.description,
               mode: request.teachingMode,
               budget: request.budgetEGP ?? 0,
@@ -1092,14 +1115,25 @@ export default function StudentDashboardPage() {
                             📡
                           </span>
                           <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <code className="font-mono text-xs font-bold text-coral">{req.id}</code>
                               <span className="rounded-full bg-sun/25 px-2.5 py-0.5 text-[11px] font-black text-ink">
                                 معروضة في رادار المدرسين ⏳
                               </span>
+                              {req.faculty && (
+                                <span className="rounded-full bg-lilac/25 text-purple-900 border border-lilac/40 px-2.5 py-0.5 text-[11px] font-black flex items-center gap-1">
+                                  🏛️ {req.faculty} {req.university ? `(${req.university})` : ""}
+                                </span>
+                              )}
                             </div>
                             <h3 className="text-base font-black text-ink mt-0.5">
-                              {req.subject} — <span className="text-coral font-bold">{req.topic}</span>
+                              {req.subject && req.subject !== req.topic ? (
+                                <>
+                                  {req.subject} — <span className="text-coral font-bold">{req.topic}</span>
+                                </>
+                              ) : (
+                                <span className="text-coral font-bold">{req.subject || req.topic}</span>
+                              )}
                             </h3>
                           </div>
                         </div>
@@ -1241,7 +1275,7 @@ export default function StudentDashboardPage() {
                   <div key={r.id} className="rounded-3xl border border-sand bg-white p-6 shadow-sm space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sand pb-4">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <code className="font-mono text-xs font-bold text-ink/60 bg-ink/5 px-2 py-0.5 rounded">
                             {r.id}
                           </code>
@@ -1253,8 +1287,21 @@ export default function StudentDashboardPage() {
                           )}>
                             {r.statusLabel}
                           </span>
+                          {r.faculty && (
+                            <span className="rounded-full bg-lilac/25 text-purple-900 border border-lilac/40 px-2.5 py-0.5 text-xs font-black flex items-center gap-1">
+                              🏛️ {r.faculty} {r.university ? `(${r.university})` : ""}
+                            </span>
+                          )}
                         </div>
-                        <h3 className="text-lg font-black text-ink mt-1">{r.subject} — {r.topic}</h3>
+                        <h3 className="text-lg font-black text-ink mt-1">
+                          {r.subject && r.subject !== r.topic ? (
+                            <>
+                              {r.subject} — <span className="text-coral font-bold">{r.topic}</span>
+                            </>
+                          ) : (
+                            <span className="text-coral font-bold">{r.subject || r.topic}</span>
+                          )}
+                        </h3>
                       </div>
                       <div className="text-left">
                         <div className="text-xs font-bold text-ink/40">الميزانية الأصلية</div>
