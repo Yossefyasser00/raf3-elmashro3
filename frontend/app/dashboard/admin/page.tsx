@@ -173,6 +173,93 @@ function printInvoice(inv: any) {
     </body></html>
   `);
   w.document.close();
+const KNOWN_SUBJECTS: Array<{ keywords: string[]; name: string }> = [
+  { keywords: ["كيمياء", "عضوية", "ألكين", "ألكان", "كيميائية"], name: "الكيمياء العضوية" },
+  { keywords: ["فيزياء", "كيرشوف", "نيوتن", "كهربية", "مغناطيسية", "ديناميكا"], name: "الفيزياء الهندسية" },
+  { keywords: ["رياضيات", "تفاضل", "تكامل", "جبر", "معادلات", "استاتيكا"], name: "الرياضيات التطبيقية" },
+  { keywords: ["برمجة", "خوارزميات", "algorithm", "python", "java", "c++", "كود"], name: "خوارزميات وبرمجة" },
+  { keywords: ["فارما", "أدوية", "صيدلة", "pharma"], name: "علم الأدوية (فارما)" },
+  { keywords: ["محاسبة", "مالية", "اقتصاد", "accounting"], name: "المحاسبة والمالية" },
+  { keywords: ["تشريح", "anatomy", "طب", "عظام", "أعصاب"], name: "علم التشريح (Anatomy)" },
+];
+
+function extractRequestMetadata(request: any) {
+  let subject = request?.subject?.name;
+  let topic = request?.topic?.name;
+  let faculty = request?.faculty?.name || request?.student?.studentProfile?.facultyName || "";
+  let university = request?.university?.name || request?.student?.studentProfile?.universityName || "";
+  const desc = (request?.description || "").trim();
+
+  // 1. Extract faculty if in description: [الكلية: ...]
+  const facultyMatch = desc.match(/\[الكلية:\s*([^\]]+)\]/);
+  if (facultyMatch) {
+    faculty = facultyMatch[1].trim();
+  }
+
+  // 2. Extract university if in description: [الجامعة: ...]
+  const uniMatch = desc.match(/\[الجامعة:\s*([^\]]+)\]/);
+  if (uniMatch) {
+    university = uniMatch[1].trim();
+  }
+
+  // 3. Extract subject if between [brackets] and not a location/faculty/uni tag
+  if (!subject) {
+    const bracketMatches = [...desc.matchAll(/\[([^\]]+)\]/g)];
+    for (const match of bracketMatches) {
+      const tag = match[1].trim();
+      if (!tag.startsWith("مكان الحضور") && !tag.startsWith("الكلية:") && !tag.startsWith("الجامعة:")) {
+        subject = tag;
+        break;
+      }
+    }
+  }
+
+  // 4. Extract topic if between (parentheses)
+  if (!topic) {
+    const parenMatch = desc.match(/\(([^)]+)\)/);
+    if (parenMatch) {
+      topic = parenMatch[1].trim();
+    }
+  }
+
+  // 5. If subject still not found, check known subject keywords
+  if (!subject) {
+    const lowerDesc = desc.toLowerCase();
+    for (const sub of KNOWN_SUBJECTS) {
+      if (sub.keywords.some((kw) => lowerDesc.includes(kw))) {
+        subject = sub.name;
+        break;
+      }
+    }
+  }
+
+  // 6. Clean remaining description
+  const cleanDesc = desc
+    .replace(/\[مكان الحضور المعتمد:[^\]]+\]/g, "")
+    .replace(/\[الكلية:[^\]]+\]/g, "")
+    .replace(/\[الجامعة:[^\]]+\]/g, "")
+    .replace(/\[[^\]]+\]/g, "")
+    .replace(/\([^)]+\)/g, "")
+    .trim();
+
+  // 7. Fallback for topic
+  if (!topic) {
+    if (cleanDesc) {
+      const parts = cleanDesc.split(/[-–—،,\n]/).map((p: string) => p.trim()).filter(Boolean);
+      topic = parts[0]?.slice(0, 45) || "موضوع الحصة";
+    }
+  }
+
+  const finalTopic = topic || (cleanDesc ? cleanDesc.slice(0, 40) : "شرح ومراجعة");
+  const finalSubject = subject || "";
+
+  return {
+    subject: finalSubject,
+    topic: finalTopic,
+    faculty,
+    university,
+    fullTitle: finalSubject && finalSubject !== finalTopic ? `${finalSubject} — ${finalTopic}` : (finalSubject || finalTopic),
+  };
 }
 
 export default function AdminDashboardPage() {
@@ -466,95 +553,6 @@ export default function AdminDashboardPage() {
                   : "يحتاج تعديلات",
           submittedAt: new Date(application.createdAt).toLocaleString("ar-EG"),
         })));
-
-const KNOWN_SUBJECTS: Array<{ keywords: string[]; name: string }> = [
-  { keywords: ["كيمياء", "عضوية", "ألكين", "ألكان", "كيميائية"], name: "الكيمياء العضوية" },
-  { keywords: ["فيزياء", "كيرشوف", "نيوتن", "كهربية", "مغناطيسية", "ديناميكا"], name: "الفيزياء الهندسية" },
-  { keywords: ["رياضيات", "تفاضل", "تكامل", "جبر", "معادلات", "استاتيكا"], name: "الرياضيات التطبيقية" },
-  { keywords: ["برمجة", "خوارزميات", "algorithm", "python", "java", "c++", "كود"], name: "خوارزميات وبرمجة" },
-  { keywords: ["فارما", "أدوية", "صيدلة", "pharma"], name: "علم الأدوية (فارما)" },
-  { keywords: ["محاسبة", "مالية", "اقتصاد", "accounting"], name: "المحاسبة والمالية" },
-  { keywords: ["تشريح", "anatomy", "طب", "عظام", "أعصاب"], name: "علم التشريح (Anatomy)" },
-];
-
-function extractRequestMetadata(request: any) {
-  let subject = request?.subject?.name;
-  let topic = request?.topic?.name;
-  let faculty = request?.faculty?.name || request?.student?.studentProfile?.facultyName || "";
-  let university = request?.university?.name || request?.student?.studentProfile?.universityName || "";
-  const desc = (request?.description || "").trim();
-
-  // 1. Extract faculty if in description: [الكلية: ...]
-  const facultyMatch = desc.match(/\[الكلية:\s*([^\]]+)\]/);
-  if (facultyMatch) {
-    faculty = facultyMatch[1].trim();
-  }
-
-  // 2. Extract university if in description: [الجامعة: ...]
-  const uniMatch = desc.match(/\[الجامعة:\s*([^\]]+)\]/);
-  if (uniMatch) {
-    university = uniMatch[1].trim();
-  }
-
-  // 3. Extract subject if between [brackets] and not a location/faculty/uni tag
-  if (!subject) {
-    const bracketMatches = [...desc.matchAll(/\[([^\]]+)\]/g)];
-    for (const match of bracketMatches) {
-      const tag = match[1].trim();
-      if (!tag.startsWith("مكان الحضور") && !tag.startsWith("الكلية:") && !tag.startsWith("الجامعة:")) {
-        subject = tag;
-        break;
-      }
-    }
-  }
-
-  // 4. Extract topic if between (parentheses)
-  if (!topic) {
-    const parenMatch = desc.match(/\(([^)]+)\)/);
-    if (parenMatch) {
-      topic = parenMatch[1].trim();
-    }
-  }
-
-  // 5. If subject still not found, check known subject keywords
-  if (!subject) {
-    const lowerDesc = desc.toLowerCase();
-    for (const sub of KNOWN_SUBJECTS) {
-      if (sub.keywords.some((kw) => lowerDesc.includes(kw))) {
-        subject = sub.name;
-        break;
-      }
-    }
-  }
-
-  // 6. Clean remaining description
-  const cleanDesc = desc
-    .replace(/\[مكان الحضور المعتمد:[^\]]+\]/g, "")
-    .replace(/\[الكلية:[^\]]+\]/g, "")
-    .replace(/\[الجامعة:[^\]]+\]/g, "")
-    .replace(/\[[^\]]+\]/g, "")
-    .replace(/\([^)]+\)/g, "")
-    .trim();
-
-  // 7. Fallback for topic
-  if (!topic) {
-    if (cleanDesc) {
-      const parts = cleanDesc.split(/[-–—،,\n]/).map((p: string) => p.trim()).filter(Boolean);
-      topic = parts[0]?.slice(0, 45) || "موضوع الحصة";
-    }
-  }
-
-  const finalTopic = topic || (cleanDesc ? cleanDesc.slice(0, 40) : "شرح ومراجعة");
-  const finalSubject = subject || "";
-
-  return {
-    subject: finalSubject,
-    topic: finalTopic,
-    faculty,
-    university,
-    fullTitle: finalSubject && finalSubject !== finalTopic ? `${finalSubject} — ${finalTopic}` : (finalSubject || finalTopic),
-  };
-}
 
         setRequests(allRequests.map((request: any): StudentReq => {
           const { subject, topic, faculty, university } = extractRequestMetadata(request);
