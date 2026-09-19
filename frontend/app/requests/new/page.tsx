@@ -22,13 +22,13 @@ const UNIVERSITIES = [
 ];
 
 const ACADEMIC_YEARS = [
-  "الفرقة الإعدادية",
-  "الفرقة الأولى",
-  "الفرقة الثانية",
-  "الفرقة الثالثة",
-  "الفرقة الرابعة",
-  "الفرقة الخامسة",
-  "سنة الامتياز / دراسات عليا",
+  "السنة 1",
+  "السنة 2",
+  "السنة 3",
+  "السنة 4",
+  "السنة 5",
+  "السنة 6",
+  "السنة 7",
 ];
 
 const DEFAULT_LOCATIONS = [
@@ -46,7 +46,7 @@ export default function NewRequestPage() {
 
   const [university, setUniversity] = useState("جامعة القاهرة");
   const [faculty, setFaculty] = useState("");
-  const [academicYear, setAcademicYear] = useState("الفرقة الأولى");
+  const [academicYear, setAcademicYear] = useState("السنة 1");
   const [selectedSubject, setSelectedSubject] = useState(initialSubject);
   const [customSubject, setCustomSubject] = useState("");
   const [topic, setTopic] = useState("");
@@ -102,7 +102,8 @@ export default function NewRequestPage() {
       const yearTag = academicYear ? `[السنة الدراسية: ${academicYear}] ` : "";
       const fullDescription = `${locationText}${universityTag}${facultyTag}${yearTag}[${actualSubject}] (${cleanTopic}) ${description}`;
 
-      const yearNum = academicYear.includes("أولى") ? 1 : academicYear.includes("ثانية") ? 2 : academicYear.includes("ثالثة") ? 3 : academicYear.includes("رابعة") ? 4 : academicYear.includes("خامسة") ? 5 : 1;
+      const matchDigits = academicYear.match(/\d+/);
+      const yearNum = matchDigits ? parseInt(matchDigits[0], 10) : (academicYear.includes("أولى") ? 1 : academicYear.includes("ثانية") ? 2 : academicYear.includes("ثالثة") ? 3 : academicYear.includes("رابعة") ? 4 : academicYear.includes("خامسة") ? 5 : 1);
 
       // POST /api/v1/requests
       const reqPayload = {

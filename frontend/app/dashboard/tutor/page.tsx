@@ -193,23 +193,21 @@ function extractRequestMetadata(request: any) {
   // 3. Extract academic year: [السنة الدراسية: ...] or [الفرقة: ...] or from profile/request
   const yearMatch = desc.match(/\[(?:السنة الدراسية|الفرقة|السنة):\s*([^\]]+)\]/);
   if (yearMatch) {
-    academicYear = yearMatch[1].trim();
+    const raw = yearMatch[1].trim();
+    if (raw.includes("1") || raw.includes("أولى")) academicYear = "السنة 1";
+    else if (raw.includes("2") || raw.includes("ثانية")) academicYear = "السنة 2";
+    else if (raw.includes("3") || raw.includes("ثالثة")) academicYear = "السنة 3";
+    else if (raw.includes("4") || raw.includes("رابعة")) academicYear = "السنة 4";
+    else if (raw.includes("5") || raw.includes("خامسة")) academicYear = "السنة 5";
+    else if (raw.includes("6") || raw.includes("سادسة")) academicYear = "السنة 6";
+    else if (raw.includes("7") || raw.includes("سابعة")) academicYear = "السنة 7";
+    else academicYear = raw;
   } else if (request?.academicYear) {
     const num = Number(request.academicYear);
-    if (num === 1) academicYear = "الفرقة الأولى";
-    else if (num === 2) academicYear = "الفرقة الثانية";
-    else if (num === 3) academicYear = "الفرقة الثالثة";
-    else if (num === 4) academicYear = "الفرقة الرابعة";
-    else if (num === 5) academicYear = "الفرقة الخامسة";
-    else academicYear = `الفرقة ${num}`;
+    academicYear = `السنة ${num}`;
   } else if (request?.student?.studentProfile?.academicYear) {
     const num = Number(request.student.studentProfile.academicYear);
-    if (num === 1) academicYear = "الفرقة الأولى";
-    else if (num === 2) academicYear = "الفرقة الثانية";
-    else if (num === 3) academicYear = "الفرقة الثالثة";
-    else if (num === 4) academicYear = "الفرقة الرابعة";
-    else if (num === 5) academicYear = "الفرقة الخامسة";
-    else academicYear = `الفرقة ${num}`;
+    academicYear = `السنة ${num}`;
   } else if (request?.student?.studentProfile?.gradeLevel) {
     academicYear = request.student.studentProfile.gradeLevel;
   }
