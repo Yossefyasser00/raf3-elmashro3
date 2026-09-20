@@ -317,6 +317,7 @@ export default function AdminDashboardPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [totalCommission, setTotalCommission] = useState(0);
+  const [disputeItems, setDisputeItems] = useState<any[]>([]);
 
   // Filter states
   const [appFilter, setAppFilter] = useState<string>("ALL");
@@ -686,6 +687,32 @@ export default function AdminDashboardPage() {
         if (commission.locations && Array.isArray(commission.locations)) {
           setInPersonLocations(commission.locations);
         }
+        // Store raw disputes data for the disputes tab (mapped to StudentReq format)
+        setDisputeItems(disputes.map((d: any) => {
+          const { subject, topic } = extractRequestMetadata(d);
+          // Get dispute reason from the latest statusHistory entry
+          const disputeReason = d.statusHistory
+            ?.find((h: any) => h.toStatus === "DISPUTED")?.reason ?? "";
+          return {
+            id: d.id,
+            studentName: d.student?.fullName ?? "طالب غير معروف",
+            studentEmail: d.student?.email ?? "",
+            university: d.university?.name ?? "غير محددة",
+            faculty: d.faculty?.name ?? "غير محددة",
+            subject,
+            topic,
+            description: disputeReason || d.description,
+            mode: d.teachingMode,
+            budget: d.budgetEGP ?? 0,
+            urgency: d.urgency,
+            status: "DISPUTED",
+            selectedTutor: d.booking?.tutor?.user?.fullName ?? null,
+            createdAt: new Date(d.createdAt).toLocaleString("ar-EG"),
+            paymentSenderAccount: d.paymentSenderAccount ?? null,
+            paymentMethodUsed: d.paymentMethodUsed ?? null,
+          };
+        }));
+        // Also mark these in the requests list for status display
         if (disputes.length > 0) {
           setRequests((current) => {
             const disputeIds = new Set(disputes.map((item: any) => item.id));
@@ -1190,7 +1217,10 @@ export default function AdminDashboardPage() {
     return matchRole && matchSearch;
   });
 
-  const disputedRequests = requests.filter((r) => r.status === "DISPUTED");
+  // Use the raw dispute data from backend directly for accurate count and display
+  const disputedRequests = disputeItems.length > 0
+    ? disputeItems
+    : requests.filter((r) => r.status === "DISPUTED");
 
   return (
     <main className="min-h-screen bg-cream font-arabic text-ink">
