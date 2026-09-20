@@ -1361,14 +1361,8 @@ export default function StudentDashboardPage() {
                           <div className="flex items-center gap-2">
                             <span className="rounded-full bg-ink/5 px-4 py-2.5 text-xs font-bold text-ink/50 flex items-center gap-2">
                               <Clock className="h-3.5 w-3.5 animate-spin text-sun" />
-                              <span>في انتظار قيام المدرس ببدء الجلسة كـ Host...</span>
+                              <span>في انتظار قيام المدرس ببدء الجلسة وإضافة رابط Google Meet...</span>
                             </span>
-                            <Link
-                              href={`/room/${req.id}`}
-                              className="rounded-full border border-sand bg-white px-4 py-2 text-xs font-bold text-ink hover:bg-sand"
-                            >
-                              قاعة الانتظار ↗
-                            </Link>
                           </div>
                         )}
                       </div>
@@ -1846,13 +1840,10 @@ export default function StudentDashboardPage() {
                           دخول محاضرة Google Meet الآن 🎥
                         </a>
                       ) : (
-                        <a
-                          href={`/room/${req.id}`}
-                          className="rounded-2xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 transition shadow-lg shadow-red-600/30 flex items-center gap-2"
-                        >
-                          <Video className="h-4 w-4" />
-                          دخول قاعة الحصة الآن 🎥
-                        </a>
+                        <span className="rounded-2xl bg-amber-500/20 px-5 py-3 text-sm font-bold text-amber-900 flex items-center gap-2">
+                          <Clock className="h-4 w-4 animate-spin text-amber-600" />
+                          في انتظار فتح المدرس للقاعة...
+                        </span>
                       )}
                       {req.selectedTutor?.meetingUrl && (
                         <button
@@ -1989,13 +1980,10 @@ export default function StudentDashboardPage() {
                                       دخول Google Meet 🎥
                                     </a>
                                   ) : (
-                                    <a
-                                      href={`/room/${req.id}`}
-                                      className="rounded-2xl bg-emerald-600 px-5 py-2.5 text-xs font-black text-white hover:bg-emerald-700 transition shadow-md flex items-center gap-1.5"
-                                    >
-                                      <Video className="h-4 w-4" />
-                                      دخول القاعة الآن 🚀
-                                    </a>
+                                    <span className="rounded-2xl bg-amber-100 px-5 py-2.5 text-xs font-bold text-amber-800 flex items-center gap-1.5">
+                                      <Clock className="h-4 w-4 animate-spin text-amber-600" />
+                                      في انتظار المدرس...
+                                    </span>
                                   )}
                                   {req.selectedTutor?.meetingUrl && (
                                     <button

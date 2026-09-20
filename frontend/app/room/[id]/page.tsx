@@ -86,12 +86,14 @@ export default function RoomPage() {
     return (
       sessionDetails?.booking?.tutor?.meetingUrl ||
       sessionDetails?.selectedTutor?.meetingUrl ||
-      "https://meet.google.com/new"
+      sessionDetails?.meetingUrl ||
+      null
     );
   };
 
   const handleCopyLink = () => {
     const url = getMeetUrl();
+    if (!url) return;
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
@@ -99,6 +101,7 @@ export default function RoomPage() {
 
   const handleJoinMeet = () => {
     const url = getMeetUrl();
+    if (!url) return;
     window.open(url, "_blank");
   };
 
@@ -217,42 +220,59 @@ export default function RoomPage() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full justify-center pt-2">
-                <button
-                  onClick={handleJoinMeet}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 rounded-2xl bg-emerald-500 px-8 py-4 text-base font-black text-slate-950 hover:bg-emerald-400 transition transform active:scale-95 shadow-xl shadow-emerald-500/30"
-                >
-                  <Video className="h-5 w-5" />
-                  <span>انضمام إلى Google Meet الآن 🚀</span>
-                  <ExternalLink className="h-4 w-4 opacity-70" />
-                </button>
+              {meetUrl ? (
+                <>
+                  <div className="flex flex-col sm:flex-row items-center gap-3 w-full justify-center pt-2">
+                    <button
+                      onClick={handleJoinMeet}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 rounded-2xl bg-emerald-500 px-8 py-4 text-base font-black text-slate-950 hover:bg-emerald-400 transition transform active:scale-95 shadow-xl shadow-emerald-500/30"
+                    >
+                      <Video className="h-5 w-5" />
+                      <span>انضمام إلى Google Meet الآن 🚀</span>
+                      <ExternalLink className="h-4 w-4 opacity-70" />
+                    </button>
 
-                <button
-                  onClick={handleCopyLink}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-800/90 px-6 py-4 text-xs font-bold text-slate-200 hover:bg-slate-700 transition"
-                >
-                  {copied ? (
-                    <>
-                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                      <span className="text-emerald-400">تم نسخ الرابط!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-4 w-4" />
-                      <span>نسخ رابط المحاضرة</span>
-                    </>
-                  )}
-                </button>
-              </div>
+                    <button
+                      onClick={handleCopyLink}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-800/90 px-6 py-4 text-xs font-bold text-slate-200 hover:bg-slate-700 transition"
+                    >
+                      {copied ? (
+                        <>
+                          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                          <span className="text-emerald-400">تم نسخ الرابط!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-4 w-4" />
+                          <span>نسخ رابط المحاضرة</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
 
-              {/* URL Display Box */}
-              <div className="w-full rounded-2xl border border-slate-800 bg-slate-950/60 p-3.5 text-xs font-mono text-emerald-400/90 text-center select-all break-all">
-                {meetUrl}
-              </div>
+                  {/* URL Display Box */}
+                  <div className="w-full rounded-2xl border border-slate-800 bg-slate-950/60 p-3.5 text-xs font-mono text-emerald-400/90 text-center select-all break-all">
+                    {meetUrl}
+                  </div>
 
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                💡 يمكنك فتح الكاميرا والمايكروفون ومشاركة شاشة العرض أو السبورة البيضاء داخل Google Meet بسلاسة تامة.
-              </p>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    💡 يمكنك فتح الكاميرا والمايكروفون ومشاركة شاشة العرض أو السبورة البيضاء داخل Google Meet بسلاسة تامة.
+                  </p>
+                </>
+              ) : (
+                <div className="flex flex-col items-center gap-4 pt-2">
+                  <div className="flex items-center gap-3 rounded-2xl border border-slate-700 bg-slate-800/60 px-8 py-5 text-slate-300">
+                    <span className="relative flex h-3 w-3">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex h-3 w-3 rounded-full bg-amber-500"></span>
+                    </span>
+                    <span className="font-bold text-sm">في انتظار قيام المدرس بفتح قاعة Google Meet...</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed max-w-xs text-center">
+                    بمجرد أن يضغط المدرس على "بدء الجلسة" وإضافة رابط Google Meet، ستظهر لك أزرار الانضمام فوراً.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </main>
