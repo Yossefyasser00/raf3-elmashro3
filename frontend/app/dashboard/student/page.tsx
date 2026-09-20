@@ -675,12 +675,15 @@ export default function StudentDashboardPage() {
   // Submit Review
   async function handleSubmitReview() {
     if (!ratingReq) return;
+    const reqId = ratingReq.id;
+    setRatingReq(null); // Optimistically close modal to prevent double clicks
+
     const token = localStorage.getItem("fz_token");
     if (!token) return;
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/requests/${ratingReq.id}/rate`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/requests/${reqId}/rate`,
         {
           method: "POST",
           headers: {
@@ -697,14 +700,16 @@ export default function StudentDashboardPage() {
       if (res.ok) {
         setPoints((p) => p + 20);
         triggerToast("⭐ شكراً لتقييمك الصادق! تمت إضافة +20 نقطة لمكافآتك بنجاح 🎁");
+      } else {
+        triggerToast("⚠️ حدث خطأ أثناء إرسال التقييم");
       }
     } catch {
-      triggerToast("⚠️ حدث خطأ أثناء إرسال التقييم");
+      triggerToast("⚠️ تعذر الاتصال بالخادم");
     }
 
     setRequests((prev) =>
       prev.map((r) =>
-        r.id === ratingReq.id
+        r.id === reqId
           ? {
               ...r,
               status: "STUDENT_RATED",
@@ -714,7 +719,6 @@ export default function StudentDashboardPage() {
           : r
       )
     );
-    setRatingReq(null);
     setReviewComment("");
   }
 
