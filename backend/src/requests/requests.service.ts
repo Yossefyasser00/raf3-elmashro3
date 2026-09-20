@@ -748,32 +748,34 @@ export class RequestsService {
         },
       });
 
-      // Give 20 points reward to student
-      await tx.pointTransaction.create({
-        data: {
-          userId: studentId,
-          points: 20,
-          reason: 'TUTOR_RATED',
-          refType: 'Review',
-          refId: review.id,
-        },
-      });
+      if (request.status !== RequestStatus.STUDENT_RATED) {
+        // Give 20 points reward to student only if it's the first time rating
+        await tx.pointTransaction.create({
+          data: {
+            userId: studentId,
+            points: 20,
+            reason: 'TUTOR_RATED',
+            refType: 'Review',
+            refId: review.id,
+          },
+        });
 
-      await tx.studentProfile.upsert({
-        where: { userId: studentId },
-        create: {
-          userId: studentId,
-          pointsBalance: 20,
-        },
-        update: {
-          pointsBalance: { increment: 20 },
-        },
-      });
+        await tx.studentProfile.upsert({
+          where: { userId: studentId },
+          create: {
+            userId: studentId,
+            pointsBalance: 20,
+          },
+          update: {
+            pointsBalance: { increment: 20 },
+          },
+        });
 
-      await tx.request.update({
-        where: { id: requestId },
-        data: { status: RequestStatus.STUDENT_RATED },
-      });
+        await tx.request.update({
+          where: { id: requestId },
+          data: { status: RequestStatus.STUDENT_RATED },
+        });
+      }
 
       return review;
     });

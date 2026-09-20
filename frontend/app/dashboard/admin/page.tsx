@@ -2291,14 +2291,7 @@ export default function AdminDashboardPage() {
                     onChange={(e) => setWorkshopForm((current) => ({ ...current, endsAt: e.target.value }))}
                     className="rounded-2xl border border-sand bg-cream/40 px-4 py-3 text-sm font-semibold outline-none focus:border-lilac"
                   />
-                  <input
-                    type="number"
-                    min="1"
-                    value={workshopForm.capacity}
-                    onChange={(e) => setWorkshopForm((current) => ({ ...current, capacity: e.target.value }))}
-                    placeholder="السعة"
-                    className="rounded-2xl border border-sand bg-cream/40 px-4 py-3 text-sm font-semibold outline-none focus:border-lilac"
-                  />
+
                   {workshopForm.type === "PAID" && (
                     <input
                       type="number"

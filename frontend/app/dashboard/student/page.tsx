@@ -699,7 +699,7 @@ export default function StudentDashboardPage() {
         triggerToast("⭐ شكراً لتقييمك الصادق! تمت إضافة +20 نقطة لمكافآتك بنجاح 🎁");
       }
     } catch {
-      setPoints((p) => p + 20);
+      triggerToast("⚠️ حدث خطأ أثناء إرسال التقييم");
     }
 
     setRequests((prev) =>
@@ -719,18 +719,42 @@ export default function StudentDashboardPage() {
   }
 
   // Open Dispute
-  function handleOpenDispute() {
+  async function handleOpenDispute() {
     if (!disputeReq) return;
-    setRequests((prev) =>
-      prev.map((r) =>
-        r.id === disputeReq.id
-          ? { ...r, status: "DISPUTED", statusLabel: "في نزاع — قيد مراجعة الإدارة ⚠️" }
-          : r
-      )
-    );
-    triggerToast("⚠️ تم تصعيد الشكوى لإدارة فك زنقة وسيتم التواصل معك وحفظ حقك المالي.");
-    setDisputeReq(null);
-    setDisputeReason("");
+    const token = localStorage.getItem("fz_token");
+    if (!token) return;
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/requests/${disputeReq.id}/dispute`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ reason: disputeReason }),
+        }
+      );
+
+      if (res.ok) {
+        setRequests((prev) =>
+          prev.map((r) =>
+            r.id === disputeReq.id
+              ? { ...r, status: "DISPUTED", statusLabel: "في نزاع — قيد مراجعة الإدارة ⚠️" }
+              : r
+          )
+        );
+        triggerToast("⚠️ تم تصعيد الشكوى لإدارة فك زنقة وسيتم التواصل معك وحفظ حقك المالي.");
+      } else {
+        triggerToast("⚠️ حدث خطأ أثناء إرسال الشكوى");
+      }
+    } catch {
+      triggerToast("⚠️ تعذر الاتصال بالخادم");
+    } finally {
+      setDisputeReq(null);
+      setDisputeReason("");
+    }
   }
 
   // Confirm Session Completion as Student
@@ -2370,7 +2394,7 @@ export default function StudentDashboardPage() {
               value={disputeReason}
               onChange={(e) => setDisputeReason(e.target.value)}
               placeholder="اكتب تفاصيل الشكوى..."
-              className="w-full rounded-2xl border border-sand p-3 text-xs outline-none focus:border-red-500"
+              className="w-full rounded-2xl border border-sand p-3 text-xs text-ink outline-none focus:border-red-500"
             />
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
