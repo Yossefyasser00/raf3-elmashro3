@@ -1737,7 +1737,7 @@ export default function AdminDashboardPage() {
                         </p>
 
                         <div className="flex flex-wrap items-center gap-4 pt-1 text-xs text-ink/60">
-                          <span>🎓 الطالب: <strong className="text-ink">{r.studentName}</strong> ({r.university} — {r.faculty})</span>
+                          <span>🎓 الطالب: <strong className="text-ink">{r.studentName}</strong> ({r.faculty})</span>
                           {r.selectedTutor && (
                             <span>👨‍🏫 المدرس المختار: <strong className="text-mint">{r.selectedTutor}</strong></span>
                           )}

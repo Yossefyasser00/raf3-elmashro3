@@ -1294,7 +1294,7 @@ export default function StudentDashboardPage() {
                               </span>
                               {req.faculty && (
                                 <span className="rounded-full bg-lilac/25 text-purple-900 border border-lilac/40 px-2.5 py-0.5 text-[11px] font-black flex items-center gap-1">
-                                  🏛️ {req.faculty} {req.university ? `(${req.university})` : ""}
+                                  🏛️ {req.faculty}
                                 </span>
                               )}
                             </div>
@@ -1308,11 +1308,6 @@ export default function StudentDashboardPage() {
                                   <span className="text-coral font-bold">{req.subject || req.topic}</span>
                                 )}
                               </span>
-                              {req.faculty && (
-                                <span className="rounded-xl bg-purple-100 text-purple-900 border border-purple-300 px-2.5 py-0.5 text-xs font-bold inline-flex items-center gap-1 shadow-sm">
-                                  🏛️ {req.faculty}
-                                </span>
-                              )}
                             </h3>
                           </div>
                         </div>
@@ -1626,7 +1621,7 @@ export default function StudentDashboardPage() {
                               </span>
                               {r.faculty && (
                                 <span className="rounded-full bg-lilac/25 text-purple-900 border border-lilac/40 px-2.5 py-0.5 text-xs font-black flex items-center gap-1">
-                                  🏛️ {r.faculty} {r.university ? `(${r.university})` : ""}
+                                  🏛️ {r.faculty}
                                 </span>
                               )}
                               {r.academicYear && (

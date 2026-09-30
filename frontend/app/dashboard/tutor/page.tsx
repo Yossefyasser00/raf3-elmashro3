@@ -1486,7 +1486,7 @@ export default function TutorDashboardPage() {
                               </span>
                               {l.faculty && (
                                 <span className="rounded-full bg-lilac/25 text-purple-900 border border-lilac/40 px-2.5 py-0.5 text-xs font-black flex items-center gap-1">
-                                  🏛️ {l.faculty} {l.university ? `(${l.university})` : ""}
+                                  🏛️ {l.faculty}
                                 </span>
                               )}
                               {l.academicYear && (
