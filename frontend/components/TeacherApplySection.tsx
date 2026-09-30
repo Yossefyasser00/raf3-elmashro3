@@ -8,7 +8,7 @@ export default function TeacherApplySection() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [university, setUniversity] = useState("جامعة القاهرة");
+  const [university, setUniversity] = useState("جامعة المنصورة");
   const [faculty, setFaculty] = useState("");
   const [experience, setExperience] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -207,11 +207,11 @@ export default function TeacherApplySection() {
                       onChange={(e) => setUniversity(e.target.value)}
                       className="w-full rounded-2xl border border-sand bg-transparent p-3 text-xs outline-none font-bold text-ink"
                     >
+                      <option value="جامعة المنصورة">جامعة المنصورة</option>
                       <option value="جامعة القاهرة">جامعة القاهرة</option>
                       <option value="جامعة عين شمس">جامعة عين شمس</option>
                       <option value="جامعة الإسكندرية">جامعة الإسكندرية</option>
                       <option value="جامعة حلوان">جامعة حلوان</option>
-                      <option value="جامعة المنصورة">جامعة المنصورة</option>
                       <option value="أخرى">أخرى</option>
                     </select>
                   </div>

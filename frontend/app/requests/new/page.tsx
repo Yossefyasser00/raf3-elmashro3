@@ -17,11 +17,9 @@ const SUBJECTS = [
   "مادة أخرى",
 ];
 
-const UNIVERSITIES = [
-  "جامعة المنصورة",
-];
+const STAGES = ["جامعي", "ثانوي"] as const;
 
-const ACADEMIC_YEARS = [
+const ACADEMIC_YEARS_UNIVERSITY = [
   "السنة 1",
   "السنة 2",
   "السنة 3",
@@ -29,6 +27,11 @@ const ACADEMIC_YEARS = [
   "السنة 5",
   "السنة 6",
   "السنة 7",
+];
+
+const ACADEMIC_YEARS_SECONDARY = [
+  "تانية ثانوي",
+  "تالتة ثانوي",
 ];
 
 const DEFAULT_LOCATIONS = [
@@ -44,8 +47,9 @@ export default function NewRequestPage() {
   const initialDesc = searchParams?.get("desc") || "";
   const initialBudget = Number(searchParams?.get("budget")) || 300;
 
-  const [university, setUniversity] = useState("جامعة القاهرة");
+  const [stage, setStage] = useState<"جامعي" | "ثانوي">("جامعي");
   const [faculty, setFaculty] = useState("");
+  const [department, setDepartment] = useState("");
   const [academicYear, setAcademicYear] = useState("السنة 1");
   const [selectedSubject, setSelectedSubject] = useState(initialSubject);
   const [customSubject, setCustomSubject] = useState("");
@@ -57,6 +61,15 @@ export default function NewRequestPage() {
   const [preferredDateTime, setPreferredDateTime] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  function handleStageChange(newStage: "جامعي" | "ثانوي") {
+    setStage(newStage);
+    if (newStage === "ثانوي") {
+      setAcademicYear("تانية ثانوي");
+    } else {
+      setAcademicYear("السنة 1");
+    }
+  }
 
   // In-Person approved locations from Admin
   const [locations, setLocations] = useState<Array<{ id: string; name: string; address: string; details?: string }>>(DEFAULT_LOCATIONS);
@@ -97,13 +110,19 @@ export default function NewRequestPage() {
 
       const actualSubject = selectedSubject === "مادة أخرى" ? (customSubject || "مادة دراسية") : selectedSubject;
       const cleanTopic = topic.trim();
-      const facultyTag = faculty.trim() ? `[الكلية: ${faculty.trim()}] ` : "";
-      const universityTag = university.trim() ? `[الجامعة: ${university.trim()}] ` : "";
+      const stageTag = `[المرحلة: ${stage}] `;
+      const facultyTag = faculty.trim() ? (stage === "جامعي" ? `[الكلية: ${faculty.trim()}] ` : `[الشعبة: ${faculty.trim()}] `) : "";
+      const deptTag = (stage === "جامعي" && department.trim()) ? `[القسم: ${department.trim()}] ` : "";
       const yearTag = academicYear ? `[السنة الدراسية: ${academicYear}] ` : "";
-      const fullDescription = `${locationText}${universityTag}${facultyTag}${yearTag}[${actualSubject}] (${cleanTopic}) ${description}`;
+      const fullDescription = `${locationText}${stageTag}${facultyTag}${deptTag}${yearTag}[${actualSubject}] (${cleanTopic}) ${description}`;
 
-      const matchDigits = academicYear.match(/\d+/);
-      const yearNum = matchDigits ? parseInt(matchDigits[0], 10) : (academicYear.includes("أولى") ? 1 : academicYear.includes("ثانية") ? 2 : academicYear.includes("ثالثة") ? 3 : academicYear.includes("رابعة") ? 4 : academicYear.includes("خامسة") ? 5 : 1);
+      let yearNum = 1;
+      if (stage === "ثانوي") {
+        yearNum = academicYear.includes("تالت") ? 3 : 2;
+      } else {
+        const matchDigits = academicYear.match(/\d+/);
+        yearNum = matchDigits ? parseInt(matchDigits[0], 10) : 1;
+      }
 
       // POST /api/v1/requests
       const reqPayload = {
@@ -191,45 +210,85 @@ export default function NewRequestPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6 rounded-3xl border border-sand dark:border-slate-700 bg-white dark:bg-slate-800/80 p-6 sm:p-8 shadow-sm">
-            {/* University, Faculty & Academic Year */}
-            <div className="grid gap-4 sm:grid-cols-3">
+            {/* Stage, Faculty, Department & Academic Year */}
+            <div className={`grid gap-4 ${stage === "جامعي" ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
               <div>
-                <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">الجامعة</label>
+                <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">المرحلة</label>
                 <select
-                  value={university}
-                  onChange={(e) => setUniversity(e.target.value)}
+                  value={stage}
+                  onChange={(e) => handleStageChange(e.target.value as "جامعي" | "ثانوي")}
                   className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-3.5 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral dark:focus:border-coral"
                 >
-                  {UNIVERSITIES.map((u) => (
-                    <option key={u} value={u}>{u}</option>
-                  ))}
+                  <option value="جامعي">جامعي</option>
+                  <option value="ثانوي">ثانوي</option>
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">الكلية أو التخصص</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="مثال: كلية الهندسة / العلوم"
-                  value={faculty}
-                  onChange={(e) => setFaculty(e.target.value)}
-                  className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-3.5 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral dark:placeholder:text-slate-500"
-                />
-              </div>
+              {stage === "جامعي" ? (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">الكلية أو التخصص</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="مثال: كلية الهندسة / العلوم"
+                      value={faculty}
+                      onChange={(e) => setFaculty(e.target.value)}
+                      className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-3.5 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral dark:placeholder:text-slate-500"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">السنة الدراسية / الفرقة</label>
-                <select
-                  value={academicYear}
-                  onChange={(e) => setAcademicYear(e.target.value)}
-                  className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-3.5 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral dark:focus:border-coral"
-                >
-                  {ACADEMIC_YEARS.map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              </div>
+                  <div>
+                    <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">القسم</label>
+                    <input
+                      type="text"
+                      placeholder="مثال: قسم مدني / اتصالات / محاسبة"
+                      value={department}
+                      onChange={(e) => setDepartment(e.target.value)}
+                      className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-3.5 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral dark:placeholder:text-slate-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">السنة الدراسية / الفرقة</label>
+                    <select
+                      value={academicYear}
+                      onChange={(e) => setAcademicYear(e.target.value)}
+                      className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-3.5 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral dark:focus:border-coral"
+                    >
+                      {ACADEMIC_YEARS_UNIVERSITY.map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">السنة الدراسية / الصف</label>
+                    <select
+                      value={academicYear}
+                      onChange={(e) => setAcademicYear(e.target.value)}
+                      className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-3.5 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral dark:focus:border-coral"
+                    >
+                      {ACADEMIC_YEARS_SECONDARY.map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">الشعبة أو التخصص (اختياري)</label>
+                    <input
+                      type="text"
+                      placeholder="مثال: علمي علوم / علمي رياضة / أدبي"
+                      value={faculty}
+                      onChange={(e) => setFaculty(e.target.value)}
+                      className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-3.5 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral dark:placeholder:text-slate-500"
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Subject Picker */}
@@ -315,16 +374,12 @@ export default function NewRequestPage() {
 
                   <button
                     type="button"
-                    onClick={() => setMode("IN_PERSON")}
-                    className={
-                      "flex items-center justify-center gap-2 rounded-2xl border p-3 text-xs font-bold transition " +
-                      (mode === "IN_PERSON"
-                        ? "border-coral bg-coral/10 text-coral font-black"
-                        : "border-sand dark:border-slate-600 bg-white dark:bg-slate-700 text-ink/70 dark:text-slate-300 hover:bg-cream dark:hover:bg-slate-600")
-                    }
+                    disabled
+                    title="متاح قريباً"
+                    className="flex items-center justify-center gap-2 rounded-2xl border border-sand/60 dark:border-slate-700 bg-sand/20 dark:bg-slate-800 p-3 text-xs font-bold text-ink/40 dark:text-slate-500 cursor-not-allowed opacity-60"
                   >
                     <MapPin className="h-4 w-4" />
-                    حضوري (في الجامعة)
+                    حضوري (Soon)
                   </button>
                 </div>
               </div>

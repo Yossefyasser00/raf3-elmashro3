@@ -190,11 +190,26 @@ function extractRequestMetadata(request: any) {
   let academicYear = "";
   const desc = (request?.description || "").trim();
 
-  // 1. Extract faculty if in description: [الكلية: ...]
-  const facultyMatch = desc.match(/\[الكلية:\s*([^\]]+)\]/);
+  // 1. Extract faculty or division: [الكلية: ...] or [الشعبة: ...]
+  const facultyMatch = desc.match(/\[(?:الكلية|الشعبة):\s*([^\]]+)\]/);
   if (facultyMatch) {
     faculty = facultyMatch[1].trim();
   }
+
+  // 1.1 Extract department: [القسم: ...]
+  const deptMatch = desc.match(/\[القسم:\s*([^\]]+)\]/);
+  if (deptMatch && deptMatch[1].trim()) {
+    const dept = deptMatch[1].trim();
+    if (faculty) {
+      faculty = `${faculty} (${dept})`;
+    } else {
+      faculty = dept;
+    }
+  }
+
+  // 1.2 Check if secondary
+  const stageMatch = desc.match(/\[المرحلة:\s*([^\]]+)\]/);
+  const isSecondary = (stageMatch && stageMatch[1].includes("ثانوي")) || desc.includes("ثانوي");
 
   // 2. Extract university if in description: [الجامعة: ...]
   const uniMatch = desc.match(/\[الجامعة:\s*([^\]]+)\]/);
@@ -206,7 +221,9 @@ function extractRequestMetadata(request: any) {
   const yearMatch = desc.match(/\[(?:السنة الدراسية|الفرقة|السنة):\s*([^\]]+)\]/);
   if (yearMatch) {
     const raw = yearMatch[1].trim();
-    if (raw.includes("1") || raw.includes("أولى")) academicYear = "السنة 1";
+    if (raw.includes("تالت") || raw.includes("ثالث") || raw.includes("3 ثانوي")) academicYear = "تالتة ثانوي";
+    else if (raw.includes("تاني") || raw.includes("ثاني") || raw.includes("2 ثانوي")) academicYear = isSecondary ? "تانية ثانوي" : "السنة 2";
+    else if (raw.includes("1") || raw.includes("أولى")) academicYear = "السنة 1";
     else if (raw.includes("2") || raw.includes("ثانية")) academicYear = "السنة 2";
     else if (raw.includes("3") || raw.includes("ثالثة")) academicYear = "السنة 3";
     else if (raw.includes("4") || raw.includes("رابعة")) academicYear = "السنة 4";
@@ -229,7 +246,7 @@ function extractRequestMetadata(request: any) {
     const bracketMatches = [...desc.matchAll(/\[([^\]]+)\]/g)];
     for (const match of bracketMatches) {
       const tag = match[1].trim();
-      if (!tag.startsWith("مكان الحضور") && !tag.startsWith("الكلية:") && !tag.startsWith("الجامعة:") && !tag.startsWith("السنة الدراسية:") && !tag.startsWith("الفرقة:") && !tag.startsWith("السنة:")) {
+      if (!tag.startsWith("مكان الحضور") && !tag.startsWith("المرحلة:") && !tag.startsWith("القسم:") && !tag.startsWith("الشعبة:") && !tag.startsWith("الكلية:") && !tag.startsWith("الجامعة:") && !tag.startsWith("السنة الدراسية:") && !tag.startsWith("الفرقة:") && !tag.startsWith("السنة:")) {
         subject = tag;
         break;
       }
@@ -257,6 +274,9 @@ function extractRequestMetadata(request: any) {
 
   // 7. Clean remaining description
   const cleanDesc = desc
+    .replace(/\[المرحلة:[^\]]+\]/g, "")
+    .replace(/\[القسم:[^\]]+\]/g, "")
+    .replace(/\[الشعبة:[^\]]+\]/g, "")
     .replace(/\[مكان الحضور المعتمد:[^\]]+\]/g, "")
     .replace(/\[الكلية:[^\]]+\]/g, "")
     .replace(/\[الجامعة:[^\]]+\]/g, "")
@@ -280,7 +300,9 @@ function extractRequestMetadata(request: any) {
 
   // 9. Infer faculty if missing or generic
   if (!faculty || faculty === "كلية غير محددة" || faculty.trim() === "") {
-    if (finalSubject && SUBJECT_TO_FACULTY[finalSubject]) {
+    if (isSecondary) {
+      faculty = "المرحلة الثانوية";
+    } else if (finalSubject && SUBJECT_TO_FACULTY[finalSubject]) {
       faculty = SUBJECT_TO_FACULTY[finalSubject];
     } else {
       const lowerAll = (desc + " " + (finalSubject || "") + " " + (finalTopic || "")).toLowerCase();
@@ -301,17 +323,17 @@ function extractRequestMetadata(request: any) {
       } else if (lowerAll.includes("آداب") || lowerAll.includes("لغات") || lowerAll.includes("إنجليزي") || lowerAll.includes("ترجم")) {
         faculty = "كلية الآداب والألسن";
       } else {
-        faculty = "كلية عامة";
+        faculty = isSecondary ? "المرحلة الثانوية" : "كلية عامة";
       }
     }
   }
 
-  if (!university || university === "جامعة غير محددة" || university.trim() === "") {
-    university = "جامعة المنصورة";
+  if (!university || university === "جامعة غير محددة" || university === "جامعة القاهرة" || university.trim() === "") {
+    university = isSecondary ? "تعليم عام" : "جامعة المنصورة";
   }
 
   if (!academicYear) {
-    academicYear = "الفرقة الأولى";
+    academicYear = isSecondary ? "تانية ثانوي" : "السنة 1";
   }
 
   return {
