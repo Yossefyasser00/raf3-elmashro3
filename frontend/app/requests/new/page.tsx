@@ -4,8 +4,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Sparkles, CheckCircle2, Clock, AlertTriangle, Video, MapPin, DollarSign, Building2 } from "lucide-react";
 
-import { useSearchParams } from "next/navigation";
-
 const SUBJECTS = [
   "الكيمياء العضوية",
   "الفيزياء الهندسية",

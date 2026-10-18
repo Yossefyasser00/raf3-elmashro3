@@ -47,7 +47,7 @@ export default function LoginPage() {
         }, 800);
       }
     } catch (err) {
-      setError("تعذر الاتصال بالسيرفر — تأكد من تشغيل الـ Backend على منفذ 4000");
+      setError("تعذر الاتصال بالخادم — تحقق من اتصالك بالإنترنت وحاول مرة أخرى.");
     } finally {
       setSubmitting(false);
     }
