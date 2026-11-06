@@ -34,7 +34,7 @@ import {
   Check,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 
 interface InPersonLocation {
@@ -392,6 +392,11 @@ export default function AdminDashboardPage() {
   const [uploadMessage, setUploadMessage] = useState<string>("");
   const [savedToast, setSavedToast] = useState<string | null>(null);
 
+  // PDF upload state for workshops
+  const [pdfUploadingWorkshopId, setPdfUploadingWorkshopId] = useState<string | null>(null);
+  const [workshopPdfs, setWorkshopPdfs] = useState<Record<string, Array<{ id: string; name: string; size: number; dataUrl: string; uploadedAt: string }>>>({});
+  const workshopPdfInputRef = useRef<HTMLInputElement | null>(null);
+
   async function handleSaveFinancialSettings() {
     const token = localStorage.getItem("fz_token");
     const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
@@ -557,6 +562,54 @@ export default function AdminDashboardPage() {
       setUploadStatus("error");
       setUploadMessage(`❌ خطأ: ${err?.message ?? "حدث خطأ غير متوقع"}`);
     }
+  }
+
+  // ── Workshop PDF helpers ──────────────────────────────────────────────────
+  function handleWorkshopPdfUpload(workshopId: string, files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const pdfFiles = Array.from(files).filter((f) => f.type === "application/pdf");
+    if (pdfFiles.length === 0) { triggerToast("يرجى اختيار ملفات PDF فقط"); return; }
+    pdfFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target?.result as string;
+        setWorkshopPdfs((prev) => ({
+          ...prev,
+          [workshopId]: [
+            ...(prev[workshopId] ?? []),
+            {
+              id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              name: file.name,
+              size: file.size,
+              dataUrl,
+              uploadedAt: new Date().toLocaleString("ar-EG"),
+            },
+          ],
+        }));
+      };
+      reader.readAsDataURL(file);
+    });
+    triggerToast(`✅ تم رفع ${pdfFiles.length} ملف PDF للورشة`);
+  }
+
+  function handleDeleteWorkshopPdf(workshopId: string, pdfId: string) {
+    setWorkshopPdfs((prev) => ({
+      ...prev,
+      [workshopId]: (prev[workshopId] ?? []).filter((f) => f.id !== pdfId),
+    }));
+  }
+
+  function handleDownloadWorkshopPdf(file: { name: string; dataUrl: string }) {
+    const a = document.createElement("a");
+    a.href = file.dataUrl;
+    a.download = file.name;
+    a.click();
+  }
+
+  function formatPdfSize(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   function isRenderableCollegeCard(value?: string | null) {
@@ -2451,6 +2504,14 @@ export default function AdminDashboardPage() {
                                 >
                                   🎬 {workshop.youtubeVideoId ? "تحديث الفيديو" : "رفع على يوتيوب"}
                                 </button>
+                                <button
+                                  onClick={() => {
+                                    setPdfUploadingWorkshopId(pdfUploadingWorkshopId === workshop.id ? null : workshop.id);
+                                  }}
+                                  className="rounded-full bg-blue-500/10 px-3 py-1.5 text-[11px] font-black text-blue-600"
+                                >
+                                  📄 {workshopPdfs[workshop.id]?.length ? `ملفات PDF (${workshopPdfs[workshop.id].length})` : "رفع PDF"}
+                                </button>
                                 <select
                                   value={workshop.status}
                                   onChange={(e) => updateWorkshopStatus(workshop.id, e.target.value as WorkshopItem["status"])}
@@ -2545,6 +2606,68 @@ export default function AdminDashboardPage() {
                                 إلغاء
                               </button>
                             </div>
+                          </div>
+                        )}
+                        {/* PDF Upload Panel */}
+                        {pdfUploadingWorkshopId === workshop.id && (
+                          <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50/50 p-4 space-y-3">
+                            <h4 className="text-sm font-black text-blue-700 flex items-center gap-2">
+                              📄 ملفات PDF للورشة
+                            </h4>
+
+                            {/* Upload button */}
+                            <div>
+                              <input
+                                ref={workshopPdfInputRef}
+                                type="file"
+                                accept="application/pdf"
+                                multiple
+                                className="hidden"
+                                onChange={(e) => handleWorkshopPdfUpload(workshop.id, e.target.files)}
+                              />
+                              <button
+                                onClick={() => workshopPdfInputRef.current?.click()}
+                                className="flex items-center gap-2 rounded-2xl border-2 border-dashed border-blue-300 bg-white px-4 py-3 text-xs font-bold text-blue-600 hover:border-blue-400 hover:bg-blue-50 transition w-full justify-center"
+                              >
+                                <span>📎</span> اختر ملف PDF للرفع
+                              </button>
+                            </div>
+
+                            {/* PDF list */}
+                            {(workshopPdfs[workshop.id] ?? []).length === 0 ? (
+                              <p className="text-center text-xs text-blue-400">لا توجد ملفات PDF مرفوعة بعد</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {(workshopPdfs[workshop.id] ?? []).map((pdf) => (
+                                  <div key={pdf.id} className="flex items-center gap-3 rounded-xl border border-blue-200 bg-white px-3 py-2">
+                                    <span className="text-lg">📄</span>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-bold text-ink truncate">{pdf.name}</p>
+                                      <p className="text-[10px] text-ink/50">{formatPdfSize(pdf.size)} · {pdf.uploadedAt}</p>
+                                    </div>
+                                    <button
+                                      onClick={() => handleDownloadWorkshopPdf(pdf)}
+                                      className="rounded-lg bg-blue-100 px-2.5 py-1 text-[10px] font-bold text-blue-700 hover:bg-blue-200 transition"
+                                    >
+                                      ⬇ تحميل
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteWorkshopPdf(workshop.id, pdf.id)}
+                                      className="rounded-lg bg-red-100 px-2 py-1 text-[10px] font-bold text-red-600 hover:bg-red-200 transition"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <button
+                              onClick={() => setPdfUploadingWorkshopId(null)}
+                              className="rounded-full border border-sand px-5 py-2 text-xs font-black text-ink/70"
+                            >
+                              إغلاق
+                            </button>
                           </div>
                         )}
                       </div>

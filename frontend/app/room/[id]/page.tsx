@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,14 +15,27 @@ import {
   MessageSquare,
   FileText,
   Send,
+  Upload,
+  Trash2,
+  Download,
+  FilePlus,
 } from "lucide-react";
+
+interface PdfFile {
+  id: string;
+  name: string;
+  size: number;
+  uploadedBy: string;
+  uploadedAt: string;
+  dataUrl: string;
+}
 
 export default function RoomPage() {
   const params = useParams();
   const router = useRouter();
   const roomId = params?.id as string;
 
-  const [activeSideTab, setActiveSideTab] = useState<"chat" | "notes">("chat");
+  const [activeSideTab, setActiveSideTab] = useState<"chat" | "notes" | "files">("chat");
   const [messages, setMessages] = useState<Array<{ sender: string; text: string; time: string; isMe?: boolean }>>([
     {
       sender: "النظام الذكي",
@@ -37,6 +50,80 @@ export default function RoomPage() {
   const [userName, setUserName] = useState("المستخدم");
   const [userRole, setUserRole] = useState<"STUDENT" | "TUTOR">("STUDENT");
   const [copied, setCopied] = useState(false);
+
+  // PDF state
+  const [pdfFiles, setPdfFiles] = useState<PdfFile[]>([]);
+  const [pdfUploading, setPdfUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load saved PDFs for this room from localStorage
+  useEffect(() => {
+    if (!roomId) return;
+    try {
+      const saved = localStorage.getItem(`fz_room_pdfs_${roomId}`);
+      if (saved) setPdfFiles(JSON.parse(saved));
+    } catch { /* ignore */ }
+  }, [roomId]);
+
+  // Persist PDFs to localStorage whenever they change
+  useEffect(() => {
+    if (!roomId) return;
+    localStorage.setItem(`fz_room_pdfs_${roomId}`, JSON.stringify(pdfFiles));
+  }, [pdfFiles, roomId]);
+
+  const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    const pdfFiles = files.filter((f) => f.type === "application/pdf");
+    if (pdfFiles.length === 0) {
+      alert("يرجى اختيار ملفات PDF فقط");
+      return;
+    }
+
+    setPdfUploading(true);
+    let processed = 0;
+
+    pdfFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target?.result as string;
+        const newFile: PdfFile = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          name: file.name,
+          size: file.size,
+          uploadedBy: userName,
+          uploadedAt: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+          dataUrl,
+        };
+        setPdfFiles((prev) => [...prev, newFile]);
+        processed++;
+        if (processed === pdfFiles.length) setPdfUploading(false);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // reset input
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDeletePdf = (id: string) => {
+    if (!confirm("هل تريد حذف هذا الملف من القاعة؟")) return;
+    setPdfFiles((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  const handleDownloadPdf = (file: PdfFile) => {
+    const a = document.createElement("a");
+    a.href = file.dataUrl;
+    a.download = file.name;
+    a.click();
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -129,6 +216,9 @@ export default function RoomPage() {
       }
     }
   };
+
+  // Make sure PDFs are shown prominently when session starts or ends
+  const switchToFiles = () => setActiveSideTab("files");
 
   const meetUrl = getMeetUrl();
   const tutorName = sessionDetails?.booking?.tutor?.user?.fullName || "المدرس المعتمد";
@@ -258,6 +348,21 @@ export default function RoomPage() {
                   <p className="text-[11px] text-slate-400 leading-relaxed">
                     💡 يمكنك فتح الكاميرا والمايكروفون ومشاركة شاشة العرض أو السبورة البيضاء داخل Google Meet بسلاسة تامة.
                   </p>
+
+                  {/* PDF quick-access banner */}
+                  <div
+                    onClick={switchToFiles}
+                    className="w-full cursor-pointer flex items-center gap-3 rounded-2xl border border-slate-700 bg-slate-800/60 px-5 py-3 hover:border-emerald-500/50 hover:bg-slate-800 transition"
+                  >
+                    <FileText className="h-5 w-5 text-red-400 shrink-0" />
+                    <div className="text-right flex-1">
+                      <p className="text-xs font-black text-slate-200">ملفات الجلسة (PDF)</p>
+                      <p className="text-[10px] text-slate-400">
+                        {pdfFiles.length > 0 ? `${pdfFiles.length} ملف مرفوع — اضغط للعرض أو الرفع` : "ارفع الشيتات والملاحظات PDF للجلسة"}
+                      </p>
+                    </div>
+                    <Upload className="h-4 w-4 text-emerald-400 shrink-0" />
+                  </div>
                 </>
               ) : (
                 <div className="flex flex-col items-center gap-4 pt-2">
@@ -271,6 +376,19 @@ export default function RoomPage() {
                   <p className="text-[11px] text-slate-500 leading-relaxed max-w-xs text-center">
                     بمجرد أن يضغط المدرس على "بدء الجلسة" وإضافة رابط Google Meet، ستظهر لك أزرار الانضمام فوراً.
                   </p>
+
+                  {/* PDF access while waiting */}
+                  <div
+                    onClick={switchToFiles}
+                    className="cursor-pointer flex items-center gap-3 rounded-2xl border border-slate-700 bg-slate-800/60 px-5 py-3 hover:border-emerald-500/50 hover:bg-slate-800 transition w-full max-w-sm"
+                  >
+                    <FileText className="h-5 w-5 text-red-400 shrink-0" />
+                    <div className="text-right flex-1">
+                      <p className="text-xs font-black text-slate-200">ملفات PDF</p>
+                      <p className="text-[10px] text-slate-400">ارفع أو راجع ملفات الجلسة أثناء الانتظار</p>
+                    </div>
+                    <Upload className="h-4 w-4 text-emerald-400 shrink-0" />
+                  </div>
                 </div>
               )}
             </div>
@@ -289,7 +407,7 @@ export default function RoomPage() {
               }`}
             >
               <MessageSquare className="h-3.5 w-3.5" />
-              <span>الدردشة السريعة</span>
+              <span>الدردشة</span>
             </button>
             <button
               onClick={() => setActiveSideTab("notes")}
@@ -300,7 +418,23 @@ export default function RoomPage() {
               }`}
             >
               <FileText className="h-3.5 w-3.5" />
-              <span>الملاحظات المشتركة</span>
+              <span>ملاحظات</span>
+            </button>
+            <button
+              onClick={() => setActiveSideTab("files")}
+              className={`flex-1 py-3 text-center transition flex items-center justify-center gap-1.5 relative ${
+                activeSideTab === "files"
+                  ? "border-b-2 border-emerald-400 text-emerald-400 bg-slate-800/50"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <FilePlus className="h-3.5 w-3.5" />
+              <span>PDF</span>
+              {pdfFiles.length > 0 && (
+                <span className="absolute top-1.5 left-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[9px] font-black text-slate-900">
+                  {pdfFiles.length}
+                </span>
+              )}
             </button>
           </div>
 
@@ -358,6 +492,82 @@ export default function RoomPage() {
               <div className="rounded-xl bg-slate-800/50 p-3 text-[11px] text-slate-400 space-y-1">
                 <p className="font-bold text-slate-300">💡 نصيحة تعليمية:</p>
                 <p>يمكنك نسخ ملاحظاتك والاحتفاظ بها بعد انتهاء الحصة لمراجعتها قبل الامتحان.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── PDF Files Tab ── */}
+          {activeSideTab === "files" && (
+            <div className="flex flex-1 flex-col overflow-hidden">
+              {/* Upload area */}
+              <div className="p-3 border-b border-slate-800">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  multiple
+                  className="hidden"
+                  onChange={handlePdfUpload}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={pdfUploading}
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-emerald-500/40 bg-emerald-500/5 px-4 py-4 text-xs font-bold text-emerald-400 hover:border-emerald-400 hover:bg-emerald-500/10 transition disabled:opacity-50"
+                >
+                  <Upload className="h-4 w-4" />
+                  {pdfUploading ? "جاري الرفع..." : "رفع ملف PDF"}
+                </button>
+                <p className="mt-1.5 text-center text-[10px] text-slate-500">
+                  يمكن للطالب والمدرس رفع ملفات PDF للجلسة
+                </p>
+              </div>
+
+              {/* Files list */}
+              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                {pdfFiles.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-500 py-10">
+                    <FileText className="h-10 w-10 opacity-30" />
+                    <p className="text-xs text-center">لا توجد ملفات PDF بعد.<br />ارفع ملفاتك الدراسية هنا.</p>
+                  </div>
+                ) : (
+                  pdfFiles.map((file) => (
+                    <div
+                      key={file.id}
+                      className="rounded-2xl border border-slate-700 bg-slate-800/60 p-3 space-y-2"
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500/15">
+                          <FileText className="h-5 w-5 text-red-400" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-slate-200 truncate">{file.name}</p>
+                          <p className="text-[10px] text-slate-500">
+                            {formatFileSize(file.size)} · {file.uploadedBy} · {file.uploadedAt}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleDownloadPdf(file)}
+                          className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500/15 px-2 py-1.5 text-[11px] font-bold text-emerald-400 hover:bg-emerald-500/25 transition"
+                        >
+                          <Download className="h-3 w-3" />
+                          تحميل
+                        </button>
+                        <button
+                          onClick={() => handleDeletePdf(file.id)}
+                          className="flex items-center justify-center rounded-xl bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-400 hover:bg-red-500/20 transition"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="border-t border-slate-800 p-3 text-[10px] text-slate-500 text-center">
+                📌 الملفات محفوظة محلياً في هذا الجهاز
               </div>
             </div>
           )}
