@@ -1,13 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../config/prisma.service';
 import { PayoutStatus } from '@prisma/client';
+import { PushService } from '../notifications/push.service';
 
 @Injectable()
 export class PayoutsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private pushService: PushService,
+  ) {}
 
   async createPayoutRequest(tutorId: string, data: { amountEGP: number; method: string; accountDetails?: string }) {
-    return this.prisma.payoutRequest.create({
+    const payout = await this.prisma.payoutRequest.create({
       data: {
         tutorId,
         amountEGP: data.amountEGP,
@@ -16,6 +20,17 @@ export class PayoutsService {
         status: PayoutStatus.PENDING,
       },
     });
+
+    try {
+      await this.pushService.sendToRole('ADMIN', {
+        title: '💸 طلب سحب أرباح جديد',
+        body: `مدرس قدّم طلب سحب بمبلغ ${data.amountEGP} ج.م`,
+        url: '/dashboard/admin',
+        tag: 'payout-request',
+      });
+    } catch {}
+
+    return payout;
   }
 
   async findByTutor(tutorId: string) {
@@ -35,9 +50,27 @@ export class PayoutsService {
   async updateStatus(id: string, status: PayoutStatus) {
     const payout = await this.prisma.payoutRequest.findUnique({ where: { id } });
     if (!payout) throw new NotFoundException('Payout request not found');
-    return this.prisma.payoutRequest.update({
+
+    const updated = await this.prisma.payoutRequest.update({
       where: { id },
       data: { status },
     });
+
+    try {
+      const isApproved = status === PayoutStatus.APPROVED || status === PayoutStatus.PAID;
+      const isRejected = status === PayoutStatus.REJECTED;
+      if (isApproved || isRejected) {
+        await this.pushService.sendToUser(payout.tutorId, {
+          title: isApproved ? '✅ تم تحويل أرباحك' : '❌ تم رفض طلب السحب',
+          body: isApproved
+            ? `تمت الموافقة على طلب سحب ${payout.amountEGP} ج.م وتم التحويل بنجاح`
+            : `تم رفض طلب سحب ${payout.amountEGP} ج.م — تواصل مع الإدارة للمزيد`,
+          url: '/dashboard/tutor',
+          tag: `payout-${id}`,
+        });
+      }
+    } catch {}
+
+    return updated;
   }
 }

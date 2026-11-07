@@ -15,12 +15,14 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../config/prisma.service';
 import { SettingsService } from './settings.service';
+import { PushService } from '../notifications/push.service';
 
 @Injectable()
 export class AdminService {
   constructor(
     private prisma: PrismaService,
     private settings: SettingsService,
+    private pushService: PushService,
   ) {}
 
   // ------------------------------------------------------------
@@ -303,7 +305,7 @@ export class AdminService {
       throw new NotFoundException('Tutor application not found');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 1. Update the application status
       const updatedApp = await tx.tutorApplication.update({
         where: { id: applicationId },
@@ -367,6 +369,26 @@ export class AdminService {
 
       return updatedApp;
     });
+
+    try {
+      if (dto.status === TutorApplicationStatus.ACCEPTED) {
+        await this.pushService.sendToUser(application.userId, {
+          title: '🎉 تم قبول طلب انضمامك!',
+          body: 'مبروك! تم قبولك كمدرس على منصة فك زنقة ويمكنك الآن استقبال الطلبات',
+          url: '/dashboard/tutor',
+          tag: 'application-accepted',
+        });
+      } else if (dto.status === TutorApplicationStatus.REJECTED) {
+        await this.pushService.sendToUser(application.userId, {
+          title: '📋 تحديث بخصوص طلب الانضمام',
+          body: dto.adminNotes ? `تم مراجعة طلبك: ${dto.adminNotes}` : 'تم مراجعة طلبك كمدرس — يرجى مراجعة التفاصيل',
+          url: '/dashboard/tutor',
+          tag: 'application-rejected',
+        });
+      }
+    } catch {}
+
+    return result;
   }
 
   // ------------------------------------------------------------
@@ -591,10 +613,27 @@ export class AdminService {
       throw new NotFoundException('Payout request not found');
     }
 
-    return this.prisma.payoutRequest.update({
+    const updated = await this.prisma.payoutRequest.update({
       where: { id },
       data: { status },
     });
+
+    try {
+      const isApproved = status === PayoutStatus.APPROVED || status === PayoutStatus.PAID;
+      const isRejected = status === PayoutStatus.REJECTED;
+      if (isApproved || isRejected) {
+        await this.pushService.sendToUser(payout.tutorId, {
+          title: isApproved ? '✅ تم تحويل أرباحك' : '❌ تم رفض طلب السحب',
+          body: isApproved
+            ? `تمت الموافقة على طلب سحب ${payout.amountEGP} ج.م وتم التحويل بنجاح`
+            : `تم رفض طلب سحب ${payout.amountEGP} ج.م — تواصل مع الإدارة للمزيد`,
+          url: '/dashboard/tutor',
+          tag: `payout-${id}`,
+        });
+      }
+    } catch {}
+
+    return updated;
   }
 
   async editUserInfo(userId: string, dto: { fullName?: string; phone?: string }) {

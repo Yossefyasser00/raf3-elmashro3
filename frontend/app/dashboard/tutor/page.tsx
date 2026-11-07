@@ -32,6 +32,7 @@ import {
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import ThemeToggle from "@/components/theme/ThemeToggle";
+import NotificationBell from "@/components/NotificationBell";
 
 interface LeadItem {
   id: string;
@@ -1022,6 +1023,7 @@ export default function TutorDashboardPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <NotificationBell />
             <ThemeToggle />
             <button
               type="button"

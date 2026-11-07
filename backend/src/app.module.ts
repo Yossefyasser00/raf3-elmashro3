@@ -11,6 +11,7 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { WorkshopsModule } from './workshops/workshops.module';
 import { PayoutsModule } from './payouts/payouts.module';
 import { PointsModule } from './points/points.module';
+import { PushModule } from './notifications/push.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { PointsModule } from './points/points.module';
     WorkshopsModule,
     PayoutsModule,
     PointsModule,
+    PushModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard }, // every route requires auth by default

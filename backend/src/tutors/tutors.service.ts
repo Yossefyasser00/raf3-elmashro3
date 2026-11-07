@@ -11,12 +11,14 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../config/prisma.service';
 import { SettingsService } from '../admin/settings.service';
+import { PushService } from '../notifications/push.service';
 
 @Injectable()
 export class TutorsService {
   constructor(
     private prisma: PrismaService,
     private settings: SettingsService,
+    private pushService: PushService,
   ) {}
 
   // ------------------------------------------------------------
@@ -72,7 +74,7 @@ export class TutorsService {
       );
     }
 
-    return this.prisma.tutorApplication.create({
+    const app = await this.prisma.tutorApplication.create({
       data: {
         userId,
         universityName: dto.universityName,
@@ -84,6 +86,17 @@ export class TutorsService {
         status: TutorApplicationStatus.PENDING,
       },
     });
+
+    try {
+      await this.pushService.sendToRole('ADMIN', {
+        title: '📋 طلب انضمام مدرس جديد',
+        body: `${dto.universityName || 'مدرس'} قدّم طلب انضمام للمنصة`,
+        url: '/dashboard/admin',
+        tag: 'tutor-application',
+      });
+    } catch {}
+
+    return app;
   }
 
   async getMyApplication(userId: string) {

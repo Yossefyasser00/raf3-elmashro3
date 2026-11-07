@@ -2,12 +2,14 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { PrismaService } from '../config/prisma.service';
 import { WorkshopStatus, WorkshopType } from '@prisma/client';
 import { YoutubeService } from './youtube.service';
+import { PushService } from '../notifications/push.service';
 
 @Injectable()
 export class WorkshopsService {
   constructor(
     private prisma: PrismaService,
     private youtubeService: YoutubeService,
+    private pushService: PushService,
   ) {}
 
 
@@ -42,7 +44,7 @@ export class WorkshopsService {
   }
 
   async create(tutorId: string, data: any) {
-    return this.prisma.workshop.create({
+    const workshop = await this.prisma.workshop.create({
       data: {
         tutorId,
         title: data.title,
@@ -55,6 +57,17 @@ export class WorkshopsService {
         status: WorkshopStatus.PENDING,
       },
     });
+
+    try {
+      await this.pushService.sendToRole('ADMIN', {
+        title: '📢 طلب ورشة عمل جديدة',
+        body: `مدرس أضاف ورشة جديدة: "${data.title}" بانتظار الموافقة`,
+        url: '/dashboard/admin',
+        tag: 'workshop-request',
+      });
+    } catch {}
+
+    return workshop;
   }
 
   async findAll(status?: WorkshopStatus) {
@@ -106,10 +119,27 @@ export class WorkshopsService {
     const workshop = await this.prisma.workshop.findUnique({ where: { id } });
     if (!workshop) throw new NotFoundException('Workshop not found');
 
-    return this.prisma.workshop.update({
+    const updated = await this.prisma.workshop.update({
       where: { id },
       data: { status },
     });
+
+    try {
+      const isApproved = status === WorkshopStatus.APPROVED || status === WorkshopStatus.PUBLISHED;
+      const isRejected = status === WorkshopStatus.REJECTED;
+      if (workshop.tutorId && (isApproved || isRejected)) {
+        await this.pushService.sendToUser(workshop.tutorId, {
+          title: isApproved ? '🎉 تمت الموافقة على ورشتك!' : '❌ تم رفض الورشة',
+          body: isApproved
+            ? `تمت الموافقة على ورشة "${workshop.title}" وأصبحت متاحة للطلاب`
+            : `تم رفض ورشة "${workshop.title}"`,
+          url: '/dashboard/tutor',
+          tag: `workshop-${id}`,
+        });
+      }
+    } catch {}
+
+    return updated;
   }
 
   async grantFreeAccess(workshopId: string, studentId: string, adminId: string) {

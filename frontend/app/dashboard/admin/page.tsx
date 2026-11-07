@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import ThemeToggle from "@/components/theme/ThemeToggle";
+import NotificationBell from "@/components/NotificationBell";
 
 interface InPersonLocation {
   id: string;
@@ -1351,6 +1352,7 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <NotificationBell />
             <ThemeToggle />
             <button
               type="button"

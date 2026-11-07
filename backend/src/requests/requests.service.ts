@@ -9,12 +9,14 @@ import { PrismaService } from '../config/prisma.service';
 import { TutorRankingService } from '../tutors/tutor-ranking.service';
 import { assertValidTransition } from './request-status.state-machine';
 import { CreateRequestDto } from './dto/create-request.dto';
+import { PushService } from '../notifications/push.service';
 
 @Injectable()
 export class RequestsService {
   constructor(
     private prisma: PrismaService,
     private ranking: TutorRankingService,
+    private pushService: PushService,
   ) {}
 
   async create(studentId: string, dto: CreateRequestDto) {
@@ -314,8 +316,9 @@ export class RequestsService {
       },
     });
 
+    let negotiationRecord;
     if (existing) {
-      return this.prisma.requestNegotiation.update({
+      negotiationRecord = await this.prisma.requestNegotiation.update({
         where: { id: existing.id },
         data: {
           proposedAmountEGP: Number(dto.proposedAmountEGP),
@@ -323,18 +326,29 @@ export class RequestsService {
           status: NegotiationStatus.PENDING,
         },
       });
+    } else {
+      negotiationRecord = await this.prisma.requestNegotiation.create({
+        data: {
+          requestId,
+          tutorId,
+          studentId: request.studentId,
+          proposedAmountEGP: Number(dto.proposedAmountEGP),
+          proposedTime: dto.proposedTime,
+          status: NegotiationStatus.PENDING,
+        },
+      });
     }
 
-    return this.prisma.requestNegotiation.create({
-      data: {
-        requestId,
-        tutorId,
-        studentId: request.studentId,
-        proposedAmountEGP: Number(dto.proposedAmountEGP),
-        proposedTime: dto.proposedTime,
-        status: NegotiationStatus.PENDING,
-      },
-    });
+    try {
+      await this.pushService.sendToUser(request.studentId, {
+        title: '💰 عرض سعر جديد',
+        body: `مدرس قدّم لك عرض سعر جديد (${dto.proposedAmountEGP} ج.م) — راجعه الآن`,
+        url: '/dashboard/student',
+        tag: `negotiation-${requestId}`,
+      });
+    } catch {}
+
+    return negotiationRecord;
   }
 
   async getNegotiations(requestId: string, actorId: string) {
@@ -402,10 +416,21 @@ export class RequestsService {
     }
 
     if (action === 'REJECT') {
-      return this.prisma.requestNegotiation.update({
+      const rejected = await this.prisma.requestNegotiation.update({
         where: { id: negotiationId },
         data: { status: NegotiationStatus.REJECTED },
       });
+
+      try {
+        await this.pushService.sendToUser(negotiation.tutorId, {
+          title: '❌ لم يتم قبول عرضك',
+          body: `الطالب لم يقبل عرض السعر (${negotiation.proposedAmountEGP} ج.م)`,
+          url: '/dashboard/tutor',
+          tag: `negotiation-rejected-${requestId}`,
+        });
+      } catch {}
+
+      return rejected;
     }
 
     await this.prisma.requestNegotiation.updateMany({
@@ -467,11 +492,22 @@ export class RequestsService {
       },
     });
 
-    return this.prisma.request.update({
+    const updatedRequest = await this.prisma.request.update({
       where: { id: requestId },
       data: { selectedTutorId: tutorProfile.id },
       include: { booking: true },
     });
+
+    try {
+      await this.pushService.sendToUser(negotiation.tutorId, {
+        title: '🎉 تم قبول عرضك!',
+        body: `الطالب وافق على عرض السعر (${negotiation.proposedAmountEGP} ج.م) وتم اختيارك للجلسة!`,
+        url: '/dashboard/tutor',
+        tag: `negotiation-accepted-${requestId}`,
+      });
+    } catch {}
+
+    return updatedRequest;
   }
 
   // Student confirms payment for session -> Moves to PAYMENT_PENDING (awaiting Admin verification)
@@ -599,6 +635,15 @@ export class RequestsService {
       );
     }
 
+    try {
+      await this.pushService.sendToUser(request.studentId, {
+        title: '🚀 الجلسة بدأت الآن!',
+        body: 'المدرس فتح قاعة الجلسة — اضغط للدخول مباشرة',
+        url: `/room/${requestId}`,
+        tag: `session-started-${requestId}`,
+      });
+    } catch {}
+
     return this.prisma.request.findUnique({
       where: { id: requestId },
       include: {
@@ -707,7 +752,7 @@ export class RequestsService {
 
     if (!booking) throw new NotFoundException('Booking not found for request');
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const review = await tx.review.upsert({
         where: { bookingId: booking.id },
         create: {
@@ -779,6 +824,23 @@ export class RequestsService {
 
       return review;
     });
+
+    try {
+      const tutorProfile = await this.prisma.tutorProfile.findUnique({
+        where: { id: booking.tutorId },
+        select: { userId: true },
+      });
+      if (tutorProfile?.userId) {
+        await this.pushService.sendToUser(tutorProfile.userId, {
+          title: '⭐ تقييم جديد من الطالب',
+          body: `الطالب قيّم جلستك بـ ${dto.overallRating}/5 نجوم${dto.comment ? `: "${dto.comment}"` : ''}`,
+          url: '/dashboard/tutor',
+          tag: `rating-${requestId}`,
+        });
+      }
+    } catch {}
+
+    return result;
   }
 
   async openDispute(requestId: string, studentId: string, reason: string) {
