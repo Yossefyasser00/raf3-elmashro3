@@ -24,6 +24,7 @@ export const viewport: Viewport = {
 };
 
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import PwaInstallPrompt from "@/components/pwa/PwaInstallPrompt";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-cream dark:bg-[#0B0F19] text-ink dark:text-slate-100 font-arabic antialiased transition-colors duration-300">
         <ThemeProvider>
           {children}
+          <PwaInstallPrompt />
         </ThemeProvider>
       </body>
     </html>
