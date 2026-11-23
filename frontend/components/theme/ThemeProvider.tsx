@@ -14,24 +14,38 @@ const ThemeContext = createContext<ThemeContextType>({
   toggleTheme: () => {},
 });
 
+function updateThemeColor(t: Theme) {
+  if (typeof document === "undefined") return;
+  const color = t === "dark" ? "#0B0F19" : "#FAF7F0";
+  let meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) {
+    meta = document.createElement("meta");
+    meta.setAttribute("name", "theme-color");
+    document.head.appendChild(meta);
+  }
+  meta.setAttribute("content", color);
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>("light");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    let initialTheme: Theme = "light";
     const saved = localStorage.getItem("fz_theme") as Theme | null;
     if (saved === "dark" || saved === "light") {
-      setTheme(saved);
-      if (saved === "dark") {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
+      initialTheme = saved;
     } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      setTheme("dark");
-      document.documentElement.classList.add("dark");
+      initialTheme = "dark";
     }
+    setTheme(initialTheme);
+    if (initialTheme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    updateThemeColor(initialTheme);
   }, []);
 
   const toggleTheme = () => {
@@ -44,6 +58,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } else {
       document.documentElement.classList.remove("dark");
     }
+    updateThemeColor(nextTheme);
   };
 
   return (

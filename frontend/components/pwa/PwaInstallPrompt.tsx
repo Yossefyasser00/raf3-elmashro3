@@ -63,20 +63,18 @@ export default function PwaInstallPrompt() {
   if (installed || !showPrompt) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 max-w-md mx-auto animate-in slide-in-from-bottom-5 duration-500 font-arabic dir-rtl">
-      <div className="bg-[#161B33] dark:bg-slate-900 border-2 border-[#EE5A36] text-white p-4 sm:p-5 rounded-3xl shadow-2xl space-y-3 relative overflow-hidden">
-        {/* Glow effect */}
-        <div className="absolute -top-10 -right-10 w-28 h-28 bg-[#EE5A36]/30 rounded-full blur-xl pointer-events-none"></div>
-
+    <div className="fixed bottom-3 sm:bottom-4 left-3 sm:left-4 right-3 sm:right-4 z-50 max-w-md mx-auto animate-in slide-in-from-bottom-5 duration-500 font-arabic dir-rtl">
+      <div className="bg-[#0B0F19]/95 border border-slate-700/80 text-white p-4 sm:p-5 rounded-3xl shadow-2xl space-y-3 relative overflow-hidden backdrop-blur-xl">
         <button
           onClick={handleDismiss}
           className="absolute top-3 left-3 text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-800 transition"
+          aria-label="إغلاق"
         >
           <X className="w-4 h-4" />
         </button>
 
         <div className="flex items-start gap-3.5 pr-1">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#EE5A36] to-orange-600 flex items-center justify-center text-white text-2xl shadow-lg shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-coral to-coralDark flex items-center justify-center text-white text-2xl shadow-md shrink-0">
             📱
           </div>
           <div>
@@ -93,13 +91,13 @@ export default function PwaInstallPrompt() {
         <div className="flex items-center gap-2 pt-1">
           <button
             onClick={handleInstallClick}
-            className="flex-1 bg-[#EE5A36] hover:bg-[#d94e2b] text-white py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition active:scale-95"
+            className="flex-1 bg-coral hover:bg-coralDark text-white py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-coral/30 transition active:scale-95"
           >
             <Download className="w-4 h-4" /> تثبيت التطبيق الآن
           </button>
           <button
             onClick={handleDismiss}
-            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs transition"
+            className="px-4 py-2.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs transition"
           >
             لاحقاً
           </button>

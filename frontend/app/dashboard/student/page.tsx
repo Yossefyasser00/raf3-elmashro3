@@ -2477,29 +2477,29 @@ export default function StudentDashboardPage() {
           {activeNav === "groups" && (
             <div className="space-y-6">
               {/* Header Card */}
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-sand bg-white p-6 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl border border-sand bg-white p-4 sm:p-6 shadow-sm">
                 <div>
                   <div className="inline-flex items-center gap-2 rounded-full bg-coral/10 px-3 py-1 text-xs font-black text-coral mb-2">
                     <Users className="h-3.5 w-3.5" />
                     المذاكرة والزنقة الجماعية
                   </div>
-                  <h1 className="text-2xl font-black text-ink">دعوات الجلسات الجماعية 👥</h1>
+                  <h1 className="text-xl sm:text-2xl font-black text-ink">دعوات الجلسات الجماعية 👥</h1>
                   <p className="text-xs text-ink/60 mt-1 max-w-xl">
                     هنا تظهر لك دعوات زملائك الطلاب للانضمام معهم في جلسات المذاكرة وحل الزنقات سوياً وتقاسم تكلفة الحصة مع المدرس.
                   </p>
                 </div>
 
-                <div className="flex flex-col items-end gap-2">
-                  <div className="flex items-center gap-2 rounded-2xl border border-sand bg-cream/60 px-4 py-2">
-                    <span className="text-xs font-bold text-ink/60">معرفك الشخصي:</span>
-                    <span className="font-mono text-sm font-black text-coral">@{currentUsername || "..."}</span>
+                <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 w-full sm:w-auto">
+                  <div className="flex items-center gap-2 rounded-2xl border border-sand bg-cream/60 px-3.5 py-1.5 sm:px-4 sm:py-2">
+                    <span className="text-xs font-bold text-ink/60">معرفك:</span>
+                    <span className="font-mono text-xs sm:text-sm font-black text-coral">@{currentUsername || "..."}</span>
                   </div>
                   <Link
                     href="/requests/new"
-                    className="inline-flex items-center gap-2 rounded-full bg-coral px-4 py-2 text-xs font-black text-white shadow-md shadow-coral/30 hover:bg-coralDark transition"
+                    className="inline-flex items-center gap-2 rounded-full bg-coral px-4 py-2 text-xs font-black text-white shadow-md shadow-coral/30 hover:bg-coralDark transition shrink-0"
                   >
                     <PlusCircle className="h-4 w-4" />
-                    إنشاء طلب زنقة جماعي
+                    إنشاء طلب جماعي
                   </Link>
                 </div>
               </div>
@@ -2632,7 +2632,7 @@ export default function StudentDashboardPage() {
                           </div>
 
                           {/* Action Buttons */}
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end pt-2 sm:pt-0">
                             {isPending && (
                               <>
                                 <button
