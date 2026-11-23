@@ -302,11 +302,35 @@ export default function RoomPage() {
                 <p className="mt-2 text-sm text-slate-300">
                   {sessionDetails?.topic?.name ? `موضوع: ${sessionDetails.topic.name}` : "جلسة تدريسية تفاعلية خاصة"}
                 </p>
-                <div className="mt-3 flex items-center justify-center gap-4 text-xs text-slate-400 font-semibold">
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-4 text-xs text-slate-400 font-semibold">
                   <span>👨‍🏫 المدرس: <strong>{tutorName}</strong></span>
                   <span>•</span>
                   <span>🎓 الطالب: <strong>{studentName}</strong></span>
+                  {sessionDetails?.isGroup && (
+                    <>
+                      <span>•</span>
+                      <span className="rounded-full bg-emerald-500/20 text-emerald-400 px-2.5 py-0.5 text-[11px] font-bold">
+                        👥 جلسة جماعية
+                      </span>
+                    </>
+                  )}
                 </div>
+
+                {sessionDetails?.isGroup && sessionDetails?.groupMembers && sessionDetails.groupMembers.length > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5 text-xs">
+                    <span className="text-slate-400 text-[11px]">الطلاب المشاركون في الجلسة:</span>
+                    {sessionDetails.groupMembers
+                      .filter((m: any) => m.status === "ACCEPTED")
+                      .map((m: any) => (
+                        <span
+                          key={m.id}
+                          className="rounded-full bg-slate-800 border border-slate-700 px-2.5 py-0.5 text-[11px] font-mono text-emerald-300"
+                        >
+                          @{m.user?.username || m.user?.fullName}
+                        </span>
+                      ))}
+                  </div>
+                )}
               </div>
 
               {/* Action Buttons */}

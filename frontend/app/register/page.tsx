@@ -7,6 +7,7 @@ type Role = "STUDENT" | "TUTOR";
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -31,6 +32,7 @@ export default function RegisterPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             fullName,
+            username: username.trim() || undefined,
             email,
             phone,
             password,
@@ -48,6 +50,9 @@ export default function RegisterPage() {
           localStorage.setItem("fz_refresh", data.refreshToken);
           localStorage.setItem("fz_roles", JSON.stringify(data.roles ?? []));
           localStorage.setItem("fz_full_name", data.fullName ?? "");
+          if (data.username) {
+            localStorage.setItem("fz_username", data.username);
+          }
         }
         setSuccess({ roles: data.roles ?? [] });
         const target = initialRole === "TUTOR" ? "/dashboard/tutor" : "/dashboard/student";
@@ -130,6 +135,26 @@ export default function RegisterPage() {
               placeholder="مثال: أحمد محمد"
               className="w-full rounded-2xl border border-sand bg-white p-3.5 text-sm text-ink outline-none transition placeholder:text-ink/40 focus:border-coral dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400"
             />
+          </div>
+
+          <div>
+            <label htmlFor="username" className="mb-2 block text-sm font-bold text-ink dark:text-slate-200">
+              اسم المستخدم (المعرف) <span className="text-xs font-normal text-ink/40 dark:text-slate-400">(اختياري)</span>
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 right-3.5 flex items-center text-sm font-bold text-ink/40 dark:text-slate-400">@</span>
+              <input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, "").toLowerCase())}
+                placeholder="ahmed_99"
+                className="w-full rounded-2xl border border-sand bg-white p-3.5 pr-8 text-sm text-ink outline-none transition placeholder:text-ink/40 focus:border-coral dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400"
+              />
+            </div>
+            <p className="mt-1 text-xs text-ink/40 dark:text-slate-400">
+              يمكن لزملائك دعوتك للجلسات الجماعية بهذا المعرف. إذا تركته فارغاً سيُنشأ تلقائياً.
+            </p>
           </div>
 
           <div>

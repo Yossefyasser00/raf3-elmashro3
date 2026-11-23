@@ -102,6 +102,7 @@ model User {
   id              String    @id @default(uuid())
   email           String    @unique
   phone           String?   @unique
+  username        String?   @unique
   passwordHash    String
   fullName        String
   avatarUrl       String?
@@ -143,9 +144,11 @@ model User {
   negotiationsAsTutor    RequestNegotiation[] @relation("NegotiationTutor")
   WorkshopFreeAccess     WorkshopFreeAccess[]
   pushSubscriptions      PushSubscription[]
+  groupInvitations       RequestGroupMember[] @relation("GroupMemberUser")
 
   @@index([email])
   @@index([phone])
+  @@index([username])
 }
 
 model UserRole {
@@ -390,6 +393,7 @@ model Request {
   paymentMethodUsed    String?  // "vodafone" أو "instapay"
 
   selectedTutorId String?
+  isGroup         Boolean       @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -406,6 +410,7 @@ model Request {
   statusHistory RequestStatusHistory[]
   conversation  Conversation?
   negotiations  RequestNegotiation[]
+  groupMembers  RequestGroupMember[]
 
   @@index([status])
   @@index([studentId])
@@ -1021,3 +1026,20 @@ model PushSubscription {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+model RequestGroupMember {
+  id         String   @id @default(uuid())
+  requestId  String
+  userId     String
+  status     String   @default("PENDING") // PENDING, ACCEPTED, DECLINED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user    User    @relation("GroupMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, userId])
+  @@index([requestId])
+  @@index([userId])
+}
+

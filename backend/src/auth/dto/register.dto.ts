@@ -21,6 +21,10 @@ export class RegisterDto {
 
   @IsOptional()
   @IsString()
+  username?: string | null;
+
+  @IsOptional()
+  @IsString()
   collegeCardFileName?: string | null;
 
   @IsOptional()

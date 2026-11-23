@@ -37,12 +37,54 @@ export class RequestsService {
         preferredAt: dto.preferredAt ? new Date(dto.preferredAt) : undefined,
         budgetEGP: dto.budgetEGP,
         urgency: dto.urgency,
+        isGroup: !!dto.isGroup,
         status: RequestStatus.DRAFT,
         statusHistory: {
           create: { toStatus: RequestStatus.DRAFT, changedByUserId: studentId },
         },
       },
+      include: {
+        student: { select: { id: true, username: true, fullName: true } },
+      },
     });
+
+    // If group request, add invited group members and send push notifications
+    if (dto.isGroup && Array.isArray(dto.invitedUsernames) && dto.invitedUsernames.length > 0) {
+      const sanitizedUsernames = dto.invitedUsernames
+        .map((u) => u.trim().toLowerCase().replace(/^@/, ''))
+        .filter(Boolean);
+
+      const invitedUsers = await this.prisma.user.findMany({
+        where: {
+          username: { in: sanitizedUsernames },
+          id: { not: studentId },
+        },
+        select: { id: true, username: true, fullName: true },
+      });
+
+      for (const user of invitedUsers) {
+        await this.prisma.requestGroupMember.upsert({
+          where: {
+            requestId_userId: { requestId: request.id, userId: user.id },
+          },
+          create: {
+            requestId: request.id,
+            userId: user.id,
+            status: 'PENDING',
+          },
+          update: {},
+        });
+
+        try {
+          await this.pushService.sendToUser(user.id, {
+            title: '👥 دعوة للانضمام لجلسة جماعية',
+            body: `الطالب @${request.student.username || request.student.fullName} دعاك للانضمام إلى جلسة جماعية: "${request.description.slice(0, 40)}..."`,
+            url: '/dashboard/student',
+            tag: `group-invite-${request.id}`,
+          });
+        } catch {}
+      }
+    }
 
     // Rule 1: نقاط نشر أول طلب للطالب الجديد: +100 نقطة
     if (prevRequestsCount === 0) {
@@ -75,10 +117,19 @@ export class RequestsService {
   async findMyRequests(studentId: string, status?: RequestStatus) {
     return this.prisma.request.findMany({
       where: {
-        studentId,
+        OR: [
+          { studentId },
+          { groupMembers: { some: { userId: studentId, status: 'ACCEPTED' } } },
+        ],
         ...(status ? { status } : {}),
       },
       include: {
+        student: { select: { id: true, username: true, fullName: true, avatarUrl: true } },
+        groupMembers: {
+          include: {
+            user: { select: { id: true, username: true, fullName: true, avatarUrl: true } },
+          },
+        },
         subject: true,
         topic: true,
         university: true,
@@ -185,12 +236,18 @@ export class RequestsService {
         statusHistory: {
           orderBy: { createdAt: 'asc' },
         },
+        groupMembers: {
+          include: {
+            user: { select: { id: true, username: true, fullName: true, avatarUrl: true } },
+          },
+        },
       },
     });
 
     if (!request) throw new NotFoundException('Request not found');
 
-    if (!isTutorOrAdmin && request.studentId !== userId) {
+    const isGroupMember = request.groupMembers?.some((m) => m.userId === userId && m.status === 'ACCEPTED');
+    if (!isTutorOrAdmin && request.studentId !== userId && !isGroupMember) {
       throw new ForbiddenException('You do not have access to this request');
     }
 
@@ -340,9 +397,9 @@ export class RequestsService {
     }
 
     try {
-      await this.pushService.sendToUser(request.studentId, {
+      await this.notifyRequestStudents(request.id, {
         title: '💰 عرض سعر جديد',
-        body: `مدرس قدّم لك عرض سعر جديد (${dto.proposedAmountEGP} ج.م) — راجعه الآن`,
+        body: `مدرس قدّم عرض سعر جديد (${dto.proposedAmountEGP} ج.م) — راجعه الآن`,
         url: '/dashboard/student',
         tag: `negotiation-${requestId}`,
       });
@@ -636,7 +693,7 @@ export class RequestsService {
     }
 
     try {
-      await this.pushService.sendToUser(request.studentId, {
+      await this.notifyRequestStudents(request.id, {
         title: '🚀 الجلسة بدأت الآن!',
         body: 'المدرس فتح قاعة الجلسة — اضغط للدخول مباشرة',
         url: `/room/${requestId}`,
@@ -896,5 +953,89 @@ export class RequestsService {
       throw new ForbiddenException('This request does not belong to you');
     }
     return request;
+  }
+
+  async notifyRequestStudents(requestId: string, payload: any, excludeUserId?: string) {
+    const request = await this.prisma.request.findUnique({
+      where: { id: requestId },
+      include: {
+        groupMembers: {
+          where: { status: 'ACCEPTED' },
+          select: { userId: true },
+        },
+      },
+    });
+    if (!request) return;
+
+    const userIds = new Set<string>();
+    if (request.studentId && request.studentId !== excludeUserId) {
+      userIds.add(request.studentId);
+    }
+    for (const member of request.groupMembers) {
+      if (member.userId !== excludeUserId) {
+        userIds.add(member.userId);
+      }
+    }
+
+    await Promise.allSettled(
+      Array.from(userIds).map((uid) => this.pushService.sendToUser(uid, payload)),
+    );
+  }
+
+  async findMyGroupInvitations(userId: string) {
+    return this.prisma.requestGroupMember.findMany({
+      where: { userId },
+      include: {
+        request: {
+          include: {
+            student: { select: { id: true, username: true, fullName: true, avatarUrl: true } },
+            subject: true,
+            topic: true,
+            booking: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async respondToGroupInvitation(requestId: string, userId: string, action: 'ACCEPT' | 'DECLINE') {
+    const member = await this.prisma.requestGroupMember.findUnique({
+      where: {
+        requestId_userId: { requestId, userId },
+      },
+      include: {
+        request: {
+          include: { student: true },
+        },
+        user: true,
+      },
+    });
+
+    if (!member) {
+      throw new NotFoundException('Group invitation not found');
+    }
+
+    const updated = await this.prisma.requestGroupMember.update({
+      where: {
+        requestId_userId: { requestId, userId },
+      },
+      data: {
+        status: action === 'ACCEPT' ? 'ACCEPTED' : 'DECLINED',
+      },
+    });
+
+    if (action === 'ACCEPT') {
+      try {
+        await this.pushService.sendToUser(member.request.studentId, {
+          title: '👥 قبول دعوة الجروب',
+          body: `الطالب @${member.user.username || member.user.fullName} قبل الانضمام لجلسة "${member.request.description.slice(0, 30)}..."`,
+          url: '/dashboard/student',
+          tag: `group-accepted-${requestId}`,
+        });
+      } catch {}
+    }
+
+    return updated;
   }
 }

@@ -116,6 +116,11 @@ export class PushService implements OnModuleInit {
             description: true,
             studentId: true,
             status: true,
+            isGroup: true,
+            groupMembers: {
+              where: { status: 'ACCEPTED' },
+              select: { userId: true },
+            },
           },
         },
         tutor: {
@@ -135,9 +140,17 @@ export class PushService implements OnModuleInit {
       const title = '⏰ تذكير بميعاد الجلسة';
       const body = `جلستك ستبدأ خلال ${minsUntil} دقيقة! جهّز نفسك للقاعة`;
 
-      // Notify Student
-      if (b.request?.studentId) {
-        await this.sendToUser(b.request.studentId, {
+      // Notify Students (creator + accepted group members)
+      const studentIds = new Set<string>();
+      if (b.request?.studentId) studentIds.add(b.request.studentId);
+      if (b.request?.isGroup && b.request?.groupMembers) {
+        for (const m of b.request.groupMembers) {
+          studentIds.add(m.userId);
+        }
+      }
+
+      for (const sId of studentIds) {
+        await this.sendToUser(sId, {
           title,
           body,
           url: `/room/${b.requestId}`,

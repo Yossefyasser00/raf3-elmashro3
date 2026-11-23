@@ -27,7 +27,7 @@
     "@nestjs/platform-socket.io": "^10.4.0",
     "@nestjs/throttler": "^6.2.1",
     "@nestjs/websockets": "^10.4.0",
-    "@prisma/client": "^5.20.0",
+    "@prisma/client": "^5.22.0",
     "@supabase/supabase-js": "^2.109.0",
     "@types/multer": "^2.2.0",
     "@types/nodemailer": "^8.0.1",
@@ -54,7 +54,7 @@
     "@types/node": "^20.14.0",
     "@types/passport-jwt": "^4.0.1",
     "@types/web-push": "^3.6.4",
-    "prisma": "^5.20.0",
+    "prisma": "^5.22.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.4"
   }

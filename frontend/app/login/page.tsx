@@ -34,6 +34,9 @@ export default function LoginPage() {
           localStorage.setItem("fz_refresh", data.refreshToken);
           localStorage.setItem("fz_roles", JSON.stringify(data.roles ?? []));
           localStorage.setItem("fz_full_name", data.fullName ?? "");
+          if (data.username) {
+            localStorage.setItem("fz_username", data.username);
+          }
         }
         setSuccess({ roles: data.roles ?? [] });
         const roles: string[] = data.roles ?? [];
@@ -80,7 +83,7 @@ export default function LoginPage() {
           >
             <div>
               <label htmlFor="email" className="mb-2 block text-sm font-bold text-ink dark:text-slate-200">
-                البريد الإلكتروني أو رقم الهاتف
+                البريد الإلكتروني أو اسم المستخدم أو الهاتف
               </label>
               <input
                 id="email"
@@ -88,7 +91,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com أو 9665xxxxx"
+                placeholder="you@example.com أو username@ أو 9665xxxxx"
                 className="w-full rounded-2xl border border-sand bg-white p-3.5 text-sm text-ink outline-none transition placeholder:text-ink/40 focus:border-coral dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400"
               />
             </div>

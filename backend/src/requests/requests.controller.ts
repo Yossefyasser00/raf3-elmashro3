@@ -48,6 +48,22 @@ export class RequestsController {
     return this.requestsService.publish(id, req.user.id);
   }
 
+  @Roles('STUDENT')
+  @Get('group/invitations')
+  findMyGroupInvitations(@Req() req: any) {
+    return this.requestsService.findMyGroupInvitations(req.user.id);
+  }
+
+  @Roles('STUDENT')
+  @Post(':id/group-invitations/respond')
+  respondToGroupInvitation(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body('action') action: 'ACCEPT' | 'DECLINE',
+  ) {
+    return this.requestsService.respondToGroupInvitation(id, req.user.id, action);
+  }
+
   @Get(':id')
   getById(@Req() req: any, @Param('id') id: string) {
     const isTutorOrAdmin =

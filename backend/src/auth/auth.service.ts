@@ -30,12 +30,27 @@ export class AuthService {
       if (existingPhone) throw new ConflictException('Phone already registered');
     }
 
+    // Validate or generate clean username
+    let username = dto.username?.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (username) {
+      const existingUser = await this.prisma.user.findUnique({ where: { username } });
+      if (existingUser) throw new ConflictException('اسم المستخدم مستخدم بالفعل');
+    } else {
+      const prefix = dto.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+      username = prefix || `user_${Date.now().toString().slice(-4)}`;
+      let count = 1;
+      while (await this.prisma.user.findUnique({ where: { username } })) {
+        username = `${prefix}${count++}`;
+      }
+    }
+
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
     try {
       const user = await this.prisma.user.create({
         data: {
           email: dto.email,
+          username,
           passwordHash,
           fullName: dto.fullName,
           phone: dto.phone ?? null,
@@ -79,6 +94,7 @@ export class AuthService {
         user.email,
         user.roles.map((r) => r.role),
         user.fullName,
+        user.username,
       );
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -93,7 +109,11 @@ export class AuthService {
 
     const user = await this.prisma.user.findFirst({
       where: {
-        OR: [{ email: identifier }, { phone: identifier }],
+        OR: [
+          { email: { equals: identifier, mode: 'insensitive' } },
+          { phone: identifier },
+          { username: { equals: identifier.replace(/^@/, ''), mode: 'insensitive' } },
+        ],
       },
       include: { roles: true },
     });
@@ -108,6 +128,7 @@ export class AuthService {
       user.email,
       user.roles.map((r) => r.role),
       user.fullName,
+      user.username,
     );
   }
 
@@ -135,6 +156,7 @@ export class AuthService {
       user.email,
       user.roles.map((r) => r.role),
       user.fullName,
+      user.username,
     );
   }
 
@@ -256,9 +278,10 @@ export class AuthService {
     email: string,
     roles: string[],
     fullName?: string,
+    username?: string | null,
   ) {
     const accessToken = this.jwt.sign(
-      { sub: userId, email, roles },
+      { sub: userId, email, roles, username },
       { secret: process.env.JWT_ACCESS_SECRET || 'fokzanqa-fallback-access-secret-2026', expiresIn: ACCESS_TOKEN_TTL },
     );
 
@@ -270,7 +293,34 @@ export class AuthService {
       data: { userId, tokenHash, expiresAt },
     });
 
-    return { accessToken, refreshToken: rawRefreshToken, roles, fullName };
+    return { accessToken, refreshToken: rawRefreshToken, roles, fullName, username };
+  }
+
+  async searchStudents(query: string, excludeUserId?: string) {
+    const q = query?.trim().toLowerCase().replace(/^@/, '');
+    if (!q || q.length < 2) return [];
+
+    return this.prisma.user.findMany({
+      where: {
+        AND: [
+          excludeUserId ? { id: { not: excludeUserId } } : {},
+          { isActive: true },
+          {
+            OR: [
+              { username: { contains: q, mode: 'insensitive' } },
+              { fullName: { contains: q, mode: 'insensitive' } },
+            ],
+          },
+        ],
+      },
+      select: {
+        id: true,
+        username: true,
+        fullName: true,
+        avatarUrl: true,
+      },
+      take: 10,
+    });
   }
 
   private hashToken(token: string) {

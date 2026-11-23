@@ -31,6 +31,11 @@ import {
   Sliders,
   GraduationCap,
   BookOpen,
+  Users,
+  UserCheck,
+  UserX,
+  Check,
+  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -76,6 +81,23 @@ interface RequestItem {
   status: "DRAFT" | "PUBLISHED" | "MATCHING" | "TUTOR_SELECTED" | "PAYMENT_PENDING" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "STUDENT_RATED" | "CANCELLED" | "DISPUTED";
   statusLabel: string;
   preferredTime: string;
+  isGroup?: boolean;
+  groupMembers?: Array<{
+    id: string;
+    userId: string;
+    status: "PENDING" | "ACCEPTED" | "DECLINED";
+    user?: {
+      id: string;
+      fullName: string;
+      username?: string | null;
+      avatarUrl?: string | null;
+    };
+  }>;
+  student?: {
+    id: string;
+    fullName: string;
+    username?: string | null;
+  };
   matches?: TutorMatch[];
   negotiations?: NegotiationItem[];
   selectedTutor?: {
@@ -350,9 +372,12 @@ function extractRequestMetadata(request: any) {
 export default function StudentDashboardPage() {
   const router = useRouter();
   const [activeNav, setActiveNav] = useState<
-    "overview" | "requests" | "rewards" | "schedule" | "invoices"
+    "overview" | "requests" | "groups" | "rewards" | "schedule" | "invoices"
   >("overview");
   const [requests, setRequests] = useState<RequestItem[]>(INITIAL_REQUESTS);
+  const [groupInvitations, setGroupInvitations] = useState<any[]>([]);
+  const [respondingInviteId, setRespondingInviteId] = useState<string | null>(null);
+  const [currentUsername, setCurrentUsername] = useState<string>("");
   const [points, setPoints] = useState<number>(0);
   const [redeemedCoupons, setRedeemedCoupons] = useState<any[]>([]);
   const [selectedReqForDetail, setSelectedReqForDetail] = useState<RequestItem | null>(null);
@@ -403,6 +428,46 @@ export default function StudentDashboardPage() {
   }
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      setCurrentUsername(localStorage.getItem("fz_username") || "");
+    }
+  }, []);
+
+  async function handleRespondGroupInvitation(requestId: string, action: "ACCEPT" | "DECLINE") {
+    const token = localStorage.getItem("fz_token");
+    if (!token) return;
+    setRespondingInviteId(requestId);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/requests/${requestId}/group-invitations/respond`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ action }),
+        },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        triggerToast(data.message || "حدث خطأ أثناء معالجة الدعوة");
+      } else {
+        triggerToast(action === "ACCEPT" ? "تم قبول الدعوة بنجاح! تم إضافتك للجلسة الجماعية 👥" : "تم رفض الدعوة");
+        setGroupInvitations((prev) =>
+          prev.map((inv) =>
+            inv.requestId === requestId ? { ...inv, status: action === "ACCEPT" ? "ACCEPTED" : "DECLINED" } : inv,
+          ),
+        );
+      }
+    } catch {
+      triggerToast("حدث خطأ في الاتصال بالخادم");
+    } finally {
+      setRespondingInviteId(null);
+    }
+  }
+
+  useEffect(() => {
     async function loadRequests() {
       const token = localStorage.getItem("fz_token");
       if (!token) {
@@ -440,6 +505,9 @@ export default function StudentDashboardPage() {
               budget: request.budgetEGP ?? 0,
               urgency: request.urgency ?? "MEDIUM",
               status: request.status,
+              isGroup: !!request.isGroup,
+              groupMembers: request.groupMembers ?? [],
+              student: request.student ?? undefined,
             statusLabel:
               request.status === "MATCHING"
                 ? "جاري ترشيح المدرسين"
@@ -524,6 +592,16 @@ export default function StudentDashboardPage() {
         if (enrollRes.ok) {
           const enrollData = await enrollRes.json();
           setWorkshopEnrollments(enrollData);
+        }
+
+        // Fetch Group Invitations
+        const invitesRes = await fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/requests/group/invitations`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (invitesRes.ok) {
+          const invitesData = await invitesRes.json();
+          setGroupInvitations(Array.isArray(invitesData) ? invitesData : []);
         }
       } catch {
         triggerToast("تعذر تحميل زنقاتك من السيرفر");
@@ -902,6 +980,10 @@ export default function StudentDashboardPage() {
     ({ negotiation }) => !negotiation.isDirectAgreement
   );
 
+  const pendingGroupInvites = groupInvitations.filter(
+    (inv) => inv.status === "PENDING"
+  );
+
   return (
     <main className="min-h-screen bg-cream font-arabic text-ink">
       {/* Toast Alert */}
@@ -925,6 +1007,11 @@ export default function StudentDashboardPage() {
                 <span className="mr-2 rounded-md bg-coral/15 px-2 py-0.5 text-[11px] font-black text-coral">
                   بوابة الطالب (Student Portal)
                 </span>
+                {currentUsername && (
+                  <span className="mr-2 inline-flex items-center rounded-md bg-sand/60 px-2 py-0.5 font-mono text-[11px] font-bold text-ink">
+                    @{currentUsername}
+                  </span>
+                )}
               </div>
             </Link>
           </div>
@@ -956,7 +1043,10 @@ export default function StudentDashboardPage() {
         <aside className="w-full lg:w-64 shrink-0">
           <div className="sticky top-20 space-y-3">
             <div className="rounded-3xl border border-sand bg-white p-3 shadow-sm">
-              <div className="mb-3 px-3 pt-2 text-xs font-bold text-ink/40">حساب الطالب</div>
+              <div className="mb-3 px-3 pt-2 text-xs font-bold text-ink/40 flex items-center justify-between">
+                <span>حساب الطالب</span>
+                {currentUsername && <span className="font-mono text-coral font-bold text-[11px]">@{currentUsername}</span>}
+              </div>
               <nav className="space-y-1">
                 {[
                   { id: "overview", label: "نظرة عامة والدروس", icon: LayoutDashboard },
@@ -966,6 +1056,13 @@ export default function StudentDashboardPage() {
                     icon: FileText,
                     count: requests.length,
                     alertBadge: pendingNegotiationsList.length > 0 ? `${pendingNegotiationsList.length} تفاوض 🔔` : undefined,
+                  },
+                  {
+                    id: "groups",
+                    label: "دعوات المجموعات (الجروبات)",
+                    icon: Users,
+                    count: groupInvitations.length || undefined,
+                    alertBadge: pendingGroupInvites.length > 0 ? `${pendingGroupInvites.length} دعوة جديدة 👥` : undefined,
                   },
                   { id: "schedule", label: "جدول مواعيد الحصص", icon: Calendar, count: requests.filter(r => ["CONFIRMED","TUTOR_SELECTED","IN_PROGRESS"].includes(r.status)).length || undefined },
                   { id: "invoices", label: "فواتيري 🧾", icon: FileText, count: (requests.filter(r => ["TUTOR_SELECTED","CONFIRMED","IN_PROGRESS","COMPLETED","STUDENT_RATED","DISPUTED"].includes(r.status)).length + workshopEnrollments.filter(e => e.workshop.type === "PAID").length) || undefined },
@@ -1613,6 +1710,12 @@ export default function StudentDashboardPage() {
                               <code className="font-mono text-xs font-bold text-ink/60 bg-ink/5 px-2 py-0.5 rounded">
                                 {r.id}
                               </code>
+                              {r.isGroup && (
+                                <span className="rounded-full bg-coral/15 text-coral border border-coral/30 px-2.5 py-0.5 text-xs font-black flex items-center gap-1">
+                                  <Users className="h-3 w-3" />
+                                  جلسة جماعية {r.groupMembers && r.groupMembers.length > 0 ? `(${r.groupMembers.filter((m: any) => m.status === 'ACCEPTED').length + 1} طلاب)` : ""}
+                                </span>
+                              )}
                               <span className={"rounded-full px-3 py-0.5 text-xs font-black " + (
                                 r.status === "CONFIRMED" ? "bg-mint/20 text-mint" :
                                 r.status === "COMPLETED" ? "bg-lilac/20 text-lilac" :
@@ -1653,6 +1756,31 @@ export default function StudentDashboardPage() {
                         <p className="text-xs text-ink/70 leading-relaxed">
                           {r.description}
                         </p>
+
+                        {r.isGroup && r.groupMembers && r.groupMembers.length > 0 && (
+                          <div className="rounded-2xl bg-sand/20 p-3 text-xs flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-ink/60 flex items-center gap-1">
+                              <Users className="h-3.5 w-3.5 text-coral" />
+                              أعضاء الجلسة الجماعية:
+                            </span>
+                            {r.groupMembers.map((m: any) => (
+                              <span
+                                key={m.id}
+                                className={
+                                  "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold " +
+                                  (m.status === "ACCEPTED"
+                                    ? "bg-mint/15 text-mint border border-mint/30"
+                                    : m.status === "DECLINED"
+                                      ? "bg-red-100 text-red-600 line-through"
+                                      : "bg-amber-100 text-amber-800 border border-amber-200")
+                                }
+                              >
+                                @{m.user?.username || m.user?.fullName}
+                                {m.status === "ACCEPTED" ? " ✓" : m.status === "PENDING" ? " (معلق)" : " (اعتذر)"}
+                              </span>
+                            ))}
+                          </div>
+                        )}
 
                         {r.negotiations && r.negotiations.length > 0 && (
                           <div className="space-y-3 rounded-2xl border-2 border-coral/30 bg-coral/5 p-4">
@@ -2340,6 +2468,238 @@ export default function StudentDashboardPage() {
                   يتم استبدال كل 500 نقطة بكوبون خصم 50 ج.م على الجلسة القادمة أو ورشة عمل مجانية.
                 </p>
               </div>
+            </div>
+          )}
+
+          {/* ========================================================
+              NAV: GROUP INVITATIONS (دعوات المجموعات والجروبات 👥)
+          ======================================================== */}
+          {activeNav === "groups" && (
+            <div className="space-y-6">
+              {/* Header Card */}
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-sand bg-white p-6 shadow-sm">
+                <div>
+                  <div className="inline-flex items-center gap-2 rounded-full bg-coral/10 px-3 py-1 text-xs font-black text-coral mb-2">
+                    <Users className="h-3.5 w-3.5" />
+                    المذاكرة والزنقة الجماعية
+                  </div>
+                  <h1 className="text-2xl font-black text-ink">دعوات الجلسات الجماعية 👥</h1>
+                  <p className="text-xs text-ink/60 mt-1 max-w-xl">
+                    هنا تظهر لك دعوات زملائك الطلاب للانضمام معهم في جلسات المذاكرة وحل الزنقات سوياً وتقاسم تكلفة الحصة مع المدرس.
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-end gap-2">
+                  <div className="flex items-center gap-2 rounded-2xl border border-sand bg-cream/60 px-4 py-2">
+                    <span className="text-xs font-bold text-ink/60">معرفك الشخصي:</span>
+                    <span className="font-mono text-sm font-black text-coral">@{currentUsername || "..."}</span>
+                  </div>
+                  <Link
+                    href="/requests/new"
+                    className="inline-flex items-center gap-2 rounded-full bg-coral px-4 py-2 text-xs font-black text-white shadow-md shadow-coral/30 hover:bg-coralDark transition"
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    إنشاء طلب زنقة جماعي
+                  </Link>
+                </div>
+              </div>
+
+              {/* Group Invitations List */}
+              {groupInvitations.length === 0 ? (
+                <div className="rounded-3xl border border-sand bg-white p-12 text-center shadow-sm">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-coral/10 text-3xl text-coral">
+                    👥
+                  </div>
+                  <h3 className="text-lg font-black text-ink">لا توجد لديك دعوات جلسات جماعية حالياً</h3>
+                  <p className="mx-auto mt-2 max-w-md text-xs text-ink/60 leading-relaxed">
+                    شارك معرفك الشخصي{" "}
+                    <strong className="font-mono text-coral font-black">@{currentUsername || "اسم_المستخدم"}</strong>{" "}
+                    مع زملائك على المنصة ليضيفوك معهم في الجلسات القادمة، أو ابدأ بإنشاء أول طلب جماعي بنفسك!
+                  </p>
+                  <Link
+                    href="/requests/new"
+                    className="mt-6 inline-flex items-center gap-2 rounded-full bg-coral px-6 py-2.5 text-xs font-black text-white hover:bg-coralDark transition shadow-md shadow-coral/20"
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    أنشئ طلب جماعي وادعُ أصدقاءك
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {groupInvitations.map((invite) => {
+                    const req = invite.request;
+                    const inviter = req?.student;
+                    const isPending = invite.status === "PENDING";
+                    const isAccepted = invite.status === "ACCEPTED";
+                    const isDeclined = invite.status === "DECLINED";
+                    const isBusy = respondingInviteId === invite.requestId;
+
+                    return (
+                      <div
+                        key={invite.id}
+                        className={
+                          "rounded-3xl border bg-white p-6 shadow-sm transition space-y-4 " +
+                          (isPending
+                            ? "border-coral/40 ring-1 ring-coral/20 hover:shadow-md"
+                            : isAccepted
+                              ? "border-mint/40 bg-gradient-to-br from-mint/5 via-white to-white"
+                              : "border-sand opacity-75")
+                        }
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-full bg-coral/10 px-2.5 py-0.5 text-[11px] font-black text-coral flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                جلسة جماعية
+                              </span>
+                              <span className="rounded-full bg-sand/60 px-2.5 py-0.5 text-[11px] font-bold text-ink/70">
+                                {req?.subject || "مادة دراسية"}
+                              </span>
+                              {req?.topic && (
+                                <span className="rounded-full bg-sand/40 px-2.5 py-0.5 text-[11px] font-medium text-ink/60">
+                                  {req.topic}
+                                </span>
+                              )}
+                              <span className="rounded-full bg-ink/5 px-2.5 py-0.5 text-[10px] font-bold text-ink/60">
+                                {req?.teachingMode === "ONLINE" ? "💻 أونلاين" : "🏢 حضوري"}
+                              </span>
+                            </div>
+                            <h3 className="text-base font-black text-ink pt-1">
+                              دعوة من: {inviter?.fullName || "طالب زميل"}{" "}
+                              {inviter?.username && (
+                                <span className="font-mono text-xs font-bold text-coral">
+                                  (@{inviter.username})
+                                </span>
+                              )}
+                            </h3>
+                          </div>
+
+                          <div>
+                            {isPending && (
+                              <span className="rounded-full bg-coral px-3 py-1 text-xs font-black text-white shadow-sm animate-pulse">
+                                بانتظار موافقتك ⏳
+                              </span>
+                            )}
+                            {isAccepted && (
+                              <span className="rounded-full bg-mint/20 text-mint font-black px-3 py-1 text-xs flex items-center gap-1">
+                                <Check className="h-3.5 w-3.5" />
+                                تم قبول الدعوة ✓
+                              </span>
+                            )}
+                            {isDeclined && (
+                              <span className="rounded-full bg-red-100 text-red-600 font-bold px-3 py-1 text-xs flex items-center gap-1">
+                                <X className="h-3.5 w-3.5" />
+                                تم الرفض
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {req?.description && (
+                          <div className="rounded-2xl bg-cream/60 p-3.5 text-xs text-ink/80 leading-relaxed border border-sand/40">
+                            <span className="font-bold text-ink block mb-1">تفاصيل الزنقة:</span>
+                            {req.description}
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-ink/60 border-t border-sand/60 pt-3">
+                          <div className="flex flex-wrap items-center gap-4">
+                            <span>
+                              📅 الموعد المقترح:{" "}
+                              <strong className="text-ink">
+                                {req?.preferredAt
+                                  ? new Date(req.preferredAt).toLocaleString("ar-EG")
+                                  : "مرن حسب الاتفاق"}
+                              </strong>
+                            </span>
+                            <span>
+                              💰 الميزانية المقترحة للجلسة:{" "}
+                              <strong className="text-coral font-black">{req?.budgetEGP || 0} ج.م</strong>
+                            </span>
+                            <span>
+                              حالة الطلب:{" "}
+                              <strong className="text-ink font-bold">
+                                {req?.status === "CONFIRMED"
+                                  ? "مؤكدة مع مدرس ✓"
+                                  : req?.status === "IN_PROGRESS"
+                                    ? "جارية الآن 🔴"
+                                    : req?.status === "MATCHING"
+                                      ? "جاري استقبال عروض المدرسين"
+                                      : req?.status}
+                              </strong>
+                            </span>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-2">
+                            {isPending && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => handleRespondGroupInvitation(invite.requestId, "ACCEPT")}
+                                  className="inline-flex items-center gap-1.5 rounded-full bg-coral px-4 py-2 text-xs font-black text-white hover:bg-coralDark shadow-sm shadow-coral/30 transition disabled:opacity-50"
+                                >
+                                  <UserCheck className="h-3.5 w-3.5" />
+                                  {isBusy ? "جاري التأكيد..." : "قبول الانضمام للجلسة"}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => handleRespondGroupInvitation(invite.requestId, "DECLINE")}
+                                  className="inline-flex items-center gap-1.5 rounded-full border border-sand bg-white px-3.5 py-2 text-xs font-bold text-ink/70 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition disabled:opacity-50"
+                                >
+                                  <UserX className="h-3.5 w-3.5" />
+                                  رفض
+                                </button>
+                              </>
+                            )}
+
+                            {isAccepted && (
+                              <div className="flex items-center gap-2">
+                                {(req?.status === "CONFIRMED" || req?.status === "IN_PROGRESS") && (
+                                  <Link
+                                    href={`/room/${invite.requestId}`}
+                                    className="inline-flex items-center gap-1.5 rounded-full bg-mint px-4 py-2 text-xs font-black text-white hover:bg-mint/90 shadow-sm transition"
+                                  >
+                                    <Video className="h-3.5 w-3.5" />
+                                    دخول قاعة الجلسة
+                                  </Link>
+                                )}
+                                <span className="text-xs text-ink/50">أنت مسجل كعضو في هذه الجلسة</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Other Group Members */}
+                        {req?.groupMembers && req.groupMembers.length > 0 && (
+                          <div className="rounded-2xl bg-sand/20 p-3 text-xs flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-ink/60">أعضاء الجروب المشاركون:</span>
+                            {req.groupMembers.map((m: any) => (
+                              <span
+                                key={m.id}
+                                className={
+                                  "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold " +
+                                  (m.status === "ACCEPTED"
+                                    ? "bg-mint/15 text-mint"
+                                    : m.status === "DECLINED"
+                                      ? "bg-red-100 text-red-600 line-through"
+                                      : "bg-amber-100 text-amber-700")
+                                }
+                              >
+                                @{m.user?.username || m.user?.fullName}
+                                {m.status === "ACCEPTED" ? " ✓" : m.status === "PENDING" ? " (معلق)" : " (اعتذر)"}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

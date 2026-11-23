@@ -23,4 +23,10 @@ export class CreateRequestDto {
   budgetEGP?: number;
 
   @IsOptional() @IsEnum(UrgencyLevel) urgency?: UrgencyLevel;
+
+  @IsOptional()
+  isGroup?: boolean;
+
+  @IsOptional()
+  invitedUsernames?: string[];
 }

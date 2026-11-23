@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../common/decorators/public.decorator';
 import { AuthService } from './auth.service';
@@ -41,5 +41,10 @@ export class AuthController {
   @Post('reset-password')
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
+  }
+
+  @Get('users/search')
+  searchUsers(@Req() req: any, @Query('q') q: string) {
+    return this.authService.searchStudents(q, req.user?.id);
   }
 }

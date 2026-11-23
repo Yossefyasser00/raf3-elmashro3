@@ -49,6 +49,8 @@ interface LeadItem {
   preferredTime?: string;
   description: string;
   status: "OPEN" | "ACCEPTED" | "PASSED";
+  isGroup?: boolean;
+  groupMembersCount?: number;
   myResponse?: {
     id: string;
     proposedAmountEGP: number;
@@ -69,6 +71,8 @@ interface BookingItem {
   price: number;
   status: "مؤكدة" | "في انتظار الدفع" | "مكتملة";
   meetUrl?: string;
+  isGroup?: boolean;
+  groupMembersCount?: number;
 }
 
 interface PayoutRequestItem {
@@ -474,6 +478,8 @@ export default function TutorDashboardPage() {
           preferredTime: request.preferredAt ? new Date(request.preferredAt).toLocaleString("ar-EG") : "موعد مرن / حسب الاتفاق",
           description: (request.description || "").replace(/\[(?:الكلية|الجامعة|السنة الدراسية|الفرقة|السنة|مكان الحضور المعتمد):[^\]]*\]\s*/g, "").replace(/\[([^\]]+)\]\s*/g, "").replace(/\(([^)]*)\)\s*/, "").trim(),
           status: request.status === "PUBLISHED" || request.status === "MATCHING" ? "OPEN" : "PASSED",
+          isGroup: !!request.isGroup,
+          groupMembersCount: request.groupMembers ? request.groupMembers.filter((m: any) => m.status === 'ACCEPTED').length + 1 : 1,
           myResponse: myNeg ? {
             id: myNeg.id,
             proposedAmountEGP: myNeg.proposedAmountEGP,
@@ -514,6 +520,8 @@ export default function TutorDashboardPage() {
             price: booking.priceEGP ?? 0,
             status: statusText,
             meetUrl: booking.tutor?.meetingUrl ?? booking.meetUrl ?? undefined,
+            isGroup: !!booking.request?.isGroup,
+            groupMembersCount: booking.request?.groupMembers ? booking.request.groupMembers.filter((m: any) => m.status === 'ACCEPTED').length + 1 : 1,
           };
         }),
       );
@@ -1486,6 +1494,11 @@ export default function TutorDashboardPage() {
                               <span className="rounded-full bg-ink/5 px-2.5 py-0.5 text-xs font-bold text-ink/70">
                                 {l.mode === "ONLINE" ? "💻 أونلاين" : "🏫 حضوري"}
                               </span>
+                              {l.isGroup && (
+                                <span className="rounded-full bg-coral/15 text-coral border border-coral/30 px-2.5 py-0.5 text-xs font-black flex items-center gap-1">
+                                  👥 جلسة جماعية ({l.groupMembersCount || 1} طلاب)
+                                </span>
+                              )}
                               {l.faculty && (
                                 <span className="rounded-full bg-lilac/25 text-purple-900 border border-lilac/40 px-2.5 py-0.5 text-xs font-black flex items-center gap-1">
                                   🏛️ {l.faculty}
@@ -1636,8 +1649,13 @@ export default function TutorDashboardPage() {
                             {b.status}
                           </span>
                         </div>
-                        <div className="text-xs text-ink/60 mt-0.5">
-                          مع الطالب: <strong>{b.student}</strong> ({b.phone}) — مادة: {b.subject}
+                        <div className="text-xs text-ink/60 mt-0.5 flex flex-wrap items-center gap-1.5">
+                          <span>مع الطالب: <strong>{b.student}</strong> ({b.phone}) — مادة: {b.subject}</span>
+                          {b.isGroup && (
+                            <span className="rounded-full bg-coral/15 text-coral px-2 py-0.5 text-[10px] font-black">
+                              👥 جماعية ({b.groupMembersCount || 1} طلاب)
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

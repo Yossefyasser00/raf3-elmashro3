@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Sparkles, CheckCircle2, Clock, AlertTriangle, Video, MapPin, DollarSign, Building2 } from "lucide-react";
+import { ArrowLeft, Sparkles, CheckCircle2, Clock, AlertTriangle, Video, MapPin, DollarSign, Building2, Users, UserPlus, X, Search } from "lucide-react";
 
 const SUBJECTS = [
   "الكيمياء العضوية",
@@ -59,6 +59,39 @@ export default function NewRequestPage() {
   const [preferredDateTime, setPreferredDateTime] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  // Group session states
+  const [isGroup, setIsGroup] = useState(false);
+  const [userQuery, setUserQuery] = useState("");
+  const [userSearchResults, setUserSearchResults] = useState<Array<{ id: string; username: string; fullName: string; avatarUrl?: string }>>([]);
+  const [invitedStudents, setInvitedStudents] = useState<Array<{ id: string; username: string; fullName: string }>>([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+
+  useEffect(() => {
+    if (!userQuery || userQuery.trim().length < 2) {
+      setUserSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setIsSearchingUsers(true);
+      try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("fz_token") : null;
+        const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
+        const res = await fetch(`${apiBase}/api/v1/auth/users/search?q=${encodeURIComponent(userQuery.trim())}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const already = new Set(invitedStudents.map((s) => s.id));
+          setUserSearchResults(data.filter((u: any) => !already.has(u.id)));
+        }
+      } catch {} finally {
+        setIsSearchingUsers(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [userQuery, invitedStudents]);
 
   function handleStageChange(newStage: "جامعي" | "ثانوي") {
     setStage(newStage);
@@ -129,6 +162,8 @@ export default function NewRequestPage() {
         budgetEGP: budget,
         urgency: urgency,
         academicYear: yearNum,
+        isGroup: isGroup,
+        invitedUsernames: isGroup ? invitedStudents.map((s) => s.username) : undefined,
         preferredAt: preferredDateTime ? new Date(preferredDateTime).toISOString() : new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
       };
 
@@ -349,6 +384,138 @@ export default function NewRequestPage() {
                 placeholder="مثال: عندي امتحان ميدتيرم بعد بكره، مش فاهم المسائل رقم 4 و 7 في الشيت ومحتاج المدرس يحلها معايا خطوة بخطوة ويوضح الفكرة."
                 className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 p-4 text-xs font-semibold text-ink dark:text-slate-100 leading-relaxed outline-none focus:border-coral dark:placeholder:text-slate-500"
               />
+            </div>
+
+            {/* Session Type: Individual vs Group */}
+            <div className="rounded-3xl border border-sand dark:border-slate-700 bg-white/70 dark:bg-slate-800/60 p-4 sm:p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-xs font-black text-ink dark:text-slate-100 flex items-center gap-2">
+                    <Users className="h-4 w-4 text-coral" /> نوع الجلسة
+                  </label>
+                  <p className="text-[11px] text-ink/60 dark:text-slate-400 mt-0.5">
+                    اختر ما إذا كان الطلب لحسابك فقط أو جلسة مشتركة مع زملائك
+                  </p>
+                </div>
+                <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-coral/10 text-coral dark:bg-coral/20">
+                  {isGroup ? "👥 جلسة جماعية" : "👤 جلسة فردية"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsGroup(false)}
+                  className={`flex items-center justify-center gap-2 rounded-2xl border p-3.5 text-xs font-bold transition ${
+                    !isGroup
+                      ? "border-coral bg-coral text-white font-black shadow-md shadow-coral/25"
+                      : "border-sand dark:border-slate-700 bg-white dark:bg-slate-800 text-ink/70 dark:text-slate-300 hover:bg-cream dark:hover:bg-slate-700"
+                  }`}
+                >
+                  <span>👤</span> فردية (طالب واحد)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsGroup(true)}
+                  className={`flex items-center justify-center gap-2 rounded-2xl border p-3.5 text-xs font-bold transition ${
+                    isGroup
+                      ? "border-coral bg-coral text-white font-black shadow-md shadow-coral/25"
+                      : "border-sand dark:border-slate-700 bg-white dark:bg-slate-800 text-ink/70 dark:text-slate-300 hover:bg-cream dark:hover:bg-slate-700"
+                  }`}
+                >
+                  <span>👥</span> جماعية (جروب طلاب)
+                </button>
+              </div>
+
+              {isGroup && (
+                <div className="space-y-3 pt-2 border-t border-sand/60 dark:border-slate-700">
+                  <div>
+                    <label className="block text-xs font-bold text-ink dark:text-slate-200 mb-1.5">
+                      إضافة طلاب باليوزر نيم (@username)
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 right-3.5 flex items-center pointer-events-none text-ink/40 dark:text-slate-500">
+                        <Search className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="text"
+                        value={userQuery}
+                        onChange={(e) => setUserQuery(e.target.value)}
+                        placeholder="اكتب اسم أو يوزر نيم الطالب... (مثال: @ahmed)"
+                        className="w-full rounded-2xl border border-sand dark:border-slate-600 bg-white dark:bg-slate-900 pr-10 pl-4 py-3 text-xs font-bold text-ink dark:text-slate-100 outline-none focus:border-coral"
+                      />
+                      {isSearchingUsers && (
+                        <div className="absolute inset-y-0 left-3.5 flex items-center text-xs text-coral animate-pulse">
+                          جاري البحث...
+                        </div>
+                      )}
+
+                      {/* Search Results Dropdown */}
+                      {userSearchResults.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 z-30 mt-1.5 max-h-48 overflow-y-auto rounded-2xl border border-sand dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xl p-1.5 space-y-1">
+                          {userSearchResults.map((u) => (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => {
+                                setInvitedStudents([...invitedStudents, { id: u.id, username: u.username, fullName: u.fullName }]);
+                                setUserQuery("");
+                                setUserSearchResults([]);
+                              }}
+                              className="w-full flex items-center justify-between p-2 rounded-xl text-right hover:bg-coral/10 dark:hover:bg-slate-700 transition"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-full bg-sand dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-ink dark:text-slate-200">
+                                  {u.fullName?.charAt(0) || "U"}
+                                </div>
+                                <div>
+                                  <div className="text-xs font-black text-ink dark:text-slate-100">{u.fullName}</div>
+                                  <div className="text-[10px] text-coral font-mono">@{u.username}</div>
+                                </div>
+                              </div>
+                              <span className="text-[11px] font-bold text-coral flex items-center gap-1">
+                                <UserPlus className="w-3.5 h-3.5" /> إضافة
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Selected Group Members Pills */}
+                  {invitedStudents.length > 0 && (
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-ink/70 dark:text-slate-300">
+                        الطلاب المدعوون ({invitedStudents.length}):
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {invitedStudents.map((st) => (
+                          <span
+                            key={st.id}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-coral/10 text-coral dark:bg-coral/20 px-3 py-1.5 text-xs font-black"
+                          >
+                            <span>{st.fullName}</span>
+                            <span className="font-mono text-[10px] opacity-75">(@{st.username})</span>
+                            <button
+                              type="button"
+                              onClick={() => setInvitedStudents(invitedStudents.filter((s) => s.id !== st.id))}
+                              className="hover:text-red-600 transition"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-ink/50 dark:text-slate-400 leading-relaxed bg-cream/70 dark:bg-slate-900/60 p-2.5 rounded-xl border border-sand/40 dark:border-slate-700">
+                    💡 سيصل إشعار فوري وتنبيه لكل طالب مدعو للموافقة على الانضمام للجروب. عند موافقة المدرس وبدء الجلسة ستصل إشعارات القاعة لجميع أعضاء الجروب تلقائياً.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Teaching Mode & Urgency */}
