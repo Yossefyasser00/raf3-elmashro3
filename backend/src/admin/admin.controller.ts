@@ -158,6 +158,11 @@ export class AdminController {
     return this.adminService.toggleUserActive(id, isActive);
   }
 
+  @Delete('users/:id')
+  deleteUser(@Param('id') id: string) {
+    return this.adminService.deleteUser(id);
+  }
+
   @Post('users/:id/roles')
   grantRole(
     @Param('id') id: string,

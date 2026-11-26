@@ -985,7 +985,7 @@ export default function StudentDashboardPage() {
   );
 
   return (
-    <main className="min-h-screen bg-cream font-arabic text-ink">
+    <main className="min-h-screen overflow-x-hidden bg-cream font-arabic text-ink">
       {/* Toast Alert */}
       {toastMsg && (
         <div className="fixed bottom-6 left-6 z-50 flex items-center gap-3 rounded-2xl bg-ink px-5 py-3.5 text-sm font-bold text-cream shadow-2xl animate-in fade-in slide-in-from-bottom-5">
@@ -996,19 +996,19 @@ export default function StudentDashboardPage() {
 
       {/* Top Header Bar */}
       <header className="border-b border-sand bg-white/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-coral to-coralDark text-xl text-white shadow-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:px-6 sm:py-3 lg:px-8">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <Link href="/" className="flex items-center gap-2 min-w-0">
+              <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-coral to-coralDark text-lg sm:text-xl text-white shadow-md">
                 🎓
               </div>
-              <div>
-                <span className="text-base font-black text-ink">فك زنقة</span>
-                <span className="mr-2 rounded-md bg-coral/15 px-2 py-0.5 text-[11px] font-black text-coral">
-                  بوابة الطالب (Student Portal)
+              <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                <span className="text-sm sm:text-base font-black text-ink whitespace-nowrap">فك زنقة</span>
+                <span className="hidden sm:inline-block rounded-md bg-coral/15 px-2 py-0.5 text-[11px] font-black text-coral whitespace-nowrap">
+                  بوابة الطالب
                 </span>
                 {currentUsername && (
-                  <span className="mr-2 inline-flex items-center rounded-md bg-sand/60 px-2 py-0.5 font-mono text-[11px] font-bold text-ink">
+                  <span className="hidden md:inline-flex items-center rounded-md bg-sand/60 px-2 py-0.5 font-mono text-[11px] font-bold text-ink">
                     @{currentUsername}
                   </span>
                 )}
@@ -1016,23 +1016,24 @@ export default function StudentDashboardPage() {
             </Link>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <NotificationBell />
             <ThemeToggle />
             <button
               type="button"
               onClick={() => window.location.href = "/"}
-              className="rounded-xl bg-coral px-3 py-1.5 text-xs font-bold text-white transition hover:bg-coralDark shadow-sm shadow-coral/30"
+              className="rounded-xl bg-coral px-2.5 sm:px-3 py-1.5 text-xs font-bold text-white transition hover:bg-coralDark shadow-sm shadow-coral/30 whitespace-nowrap"
             >
               الرئيسية
             </button>
             <button
               type="button"
               onClick={handleLogout}
-              className="inline-flex items-center gap-2 rounded-xl border border-sand bg-white px-3 py-1.5 text-xs font-bold text-ink transition hover:border-red-300 hover:text-red-600"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-sand bg-white px-2.5 sm:px-3 py-1.5 text-xs font-bold text-ink transition hover:border-red-300 hover:text-red-600"
+              title="تسجيل الخروج"
             >
               <LogOut className="h-3.5 w-3.5" />
-              تسجيل الخروج
+              <span className="hidden sm:inline">تسجيل الخروج</span>
             </button>
           </div>
         </div>

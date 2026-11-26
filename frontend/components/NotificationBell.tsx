@@ -176,7 +176,7 @@ export default function NotificationBell() {
 
       {showPopup && (
         <div
-          className="absolute left-0 top-12 z-50 w-80 sm:w-96 max-w-[calc(100vw-2rem)] rounded-3xl border border-sand bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-800"
+          className="fixed inset-x-3 top-16 sm:inset-x-auto sm:absolute sm:left-0 sm:top-12 z-50 sm:w-96 rounded-3xl border border-sand bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-800"
           dir="rtl"
         >
           <div className="mb-3 flex items-center justify-between border-b border-sand/60 pb-2.5 dark:border-slate-700">

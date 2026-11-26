@@ -1255,16 +1255,61 @@ export default function AdminDashboardPage() {
   }
 
   // User actions
-  function handleToggleUserActive(userId: string) {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, isActive: !u.isActive } : u))
-    );
+  async function handleToggleUserActive(userId: string) {
     const u = users.find((x) => x.id === userId);
-    triggerToast(
-      u?.isActive
-        ? `⛔ تم تجميد حساب المستخدم ${u.name}`
-        : `✅ تم إعادة تنشيط حساب ${u?.name}`
-    );
+    if (!u) return;
+    const nextActive = !u.isActive;
+    const token = localStorage.getItem("fz_token");
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/admin/users/${userId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ isActive: nextActive }),
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message ?? "تعذر تحديث حالة الحساب");
+      }
+      setUsers((prev) =>
+        prev.map((x) => (x.id === userId ? { ...x, isActive: nextActive } : x))
+      );
+      triggerToast(
+        nextActive
+          ? `✅ تم إعادة تنشيط حساب ${u.name}`
+          : `⛔ تم تجميد حساب المستخدم ${u.name}`
+      );
+    } catch (err: any) {
+      triggerToast(`⚠️ ${err.message || "حدث خطأ أثناء تحديث الحساب"}`);
+    }
+  }
+
+  async function handleDeleteUser(userId: string) {
+    const u = users.find((x) => x.id === userId);
+    if (!confirm(`هل أنت متأكد من حذف حساب "${u?.name || "المستخدم"}" نهائياً؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
+    const token = localStorage.getItem("fz_token");
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/admin/users/${userId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message ?? "تعذر حذف المستخدم");
+      }
+      setUsers((prev) => prev.filter((x) => x.id !== userId));
+      triggerToast(`🗑️ تم حذف حساب المستخدم ${u?.name || ""} نهائياً.`);
+    } catch (err: any) {
+      triggerToast(`⚠️ ${err.message || "حدث خطأ أثناء حذف المستخدم"}`);
+    }
   }
 
   function handleChangeUserRole(userId: string, newRole: "STUDENT" | "TUTOR" | "ADMIN") {
@@ -1323,7 +1368,7 @@ export default function AdminDashboardPage() {
     : requests.filter((r) => r.status === "DISPUTED");
 
   return (
-    <main className="min-h-screen bg-cream font-arabic text-ink">
+    <main className="min-h-screen overflow-x-hidden bg-cream font-arabic text-ink">
       {/* Toast Notification */}
       {savedToast && (
         <div className="fixed bottom-6 left-6 z-50 flex items-center gap-3 rounded-2xl bg-ink px-5 py-3.5 text-sm font-bold text-cream shadow-2xl animate-in fade-in slide-in-from-bottom-5">
@@ -1359,38 +1404,39 @@ export default function AdminDashboardPage() {
 
       {/* Top Demo Bar / Persona Switcher */}
       <header className="border-b border-sand bg-white/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-lilac to-indigo-700 text-xl text-white shadow-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:px-6 sm:py-3 lg:px-8">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <Link href="/" className="flex items-center gap-2 min-w-0">
+              <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-lilac to-indigo-700 text-lg sm:text-xl text-white shadow-md">
                 👑
               </div>
-              <div>
-                <span className="text-base font-black text-ink">فك زنقة</span>
-                <span className="mr-2 rounded-md bg-lilac/15 px-2 py-0.5 text-[11px] font-black text-lilac">
-                  بوابة الإدارة الشاملة (Admin Portal)
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-sm sm:text-base font-black text-ink whitespace-nowrap">فك زنقة</span>
+                <span className="hidden sm:inline-block rounded-md bg-lilac/15 px-2 py-0.5 text-[11px] font-black text-lilac whitespace-nowrap">
+                  بوابة الإدارة الشاملة
                 </span>
               </div>
             </Link>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <NotificationBell />
             <ThemeToggle />
             <button
               type="button"
               onClick={() => window.location.href = "/"}
-              className="rounded-xl bg-ink px-3 py-1.5 text-xs font-bold text-cream transition hover:bg-ink/90"
+              className="rounded-xl bg-ink px-2.5 sm:px-3 py-1.5 text-xs font-bold text-cream transition hover:bg-ink/90 whitespace-nowrap"
             >
               الرئيسية
             </button>
             <button
               type="button"
               onClick={handleLogout}
-              className="inline-flex items-center gap-2 rounded-xl border border-sand bg-white px-3 py-1.5 text-xs font-bold text-ink transition hover:border-red-300 hover:text-red-600"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-sand bg-white px-2.5 sm:px-3 py-1.5 text-xs font-bold text-ink transition hover:border-red-300 hover:text-red-600"
+              title="تسجيل الخروج"
             >
               <LogOut className="h-3.5 w-3.5" />
-              تسجيل الخروج
+              <span className="hidden sm:inline">تسجيل الخروج</span>
             </button>
           </div>
         </div>
@@ -1616,8 +1662,8 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* Applications Table */}
-              <div className="rounded-3xl border border-sand bg-white p-6 shadow-sm overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="rounded-3xl border border-sand bg-white p-4 sm:p-6 shadow-sm overflow-x-auto">
+                <table className="w-full min-w-[700px] text-sm">
                   <thead>
                     <tr className="border-b border-sand text-right text-xs font-black text-ink/50">
                       <th className="py-3 pr-2">المعرف</th>
@@ -1934,8 +1980,8 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-sand bg-white p-6 shadow-sm overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="rounded-3xl border border-sand bg-white p-4 sm:p-6 shadow-sm overflow-x-auto">
+                <table className="w-full min-w-[700px] text-sm">
                   <thead>
                     <tr className="border-b border-sand text-right text-xs font-black text-ink/50">
                       <th className="py-3 pr-2">المستخدم</th>
@@ -2033,6 +2079,18 @@ export default function AdminDashboardPage() {
                             >
                               {u.isActive ? "تجميد الحساب" : "تنشيط"}
                             </button>
+
+                            {/* Delete User Button (after freeze) */}
+                            {!u.isActive && (
+                              <button
+                                onClick={() => handleDeleteUser(u.id)}
+                                className="inline-flex items-center gap-1 rounded-xl bg-red-600 px-3 py-1 text-xs font-black text-white hover:bg-red-700 transition shadow-sm"
+                                title="حذف المستخدم نهائياً"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                حذف
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -2734,7 +2792,7 @@ export default function AdminDashboardPage() {
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full min-w-[700px] text-sm">
                       <thead>
                         <tr className="border-b border-sand text-right text-xs font-black text-ink/50">
                           <th className="py-3 pr-2">الورشة</th>
@@ -2914,7 +2972,7 @@ export default function AdminDashboardPage() {
                   <div className="text-center py-10 text-ink/40 font-bold text-sm">لا توجد فواتير مدفوعة حتى الآن</div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full min-w-[700px] text-sm">
                       <thead>
                         <tr className="border-b border-sand text-right text-xs font-bold text-ink/50">
                           <th className="pb-3 pr-2">رقم الفاتورة</th>

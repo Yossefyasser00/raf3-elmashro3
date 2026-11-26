@@ -262,23 +262,47 @@ export class AdminService {
     });
   }
 
+  private async cleanupBookingsTx(tx: Prisma.TransactionClient, bookingIds: string[]) {
+    if (bookingIds.length === 0) return;
+    await tx.quizAttempt.deleteMany({ where: { bookingId: { in: bookingIds } } });
+    await tx.review.deleteMany({ where: { bookingId: { in: bookingIds } } });
+    await tx.payment.deleteMany({ where: { bookingId: { in: bookingIds } } });
+    await tx.booking.deleteMany({ where: { id: { in: bookingIds } } });
+  }
+
+  private async cleanupTutorProfileTx(tx: Prisma.TransactionClient, tutorProfileId: string) {
+    const bookings = await tx.booking.findMany({
+      where: { tutorId: tutorProfileId },
+      select: { id: true },
+    });
+    await this.cleanupBookingsTx(tx, bookings.map((b) => b.id));
+    await tx.review.deleteMany({ where: { tutorId: tutorProfileId } });
+    await tx.requestMatch.deleteMany({ where: { tutorId: tutorProfileId } });
+    await tx.tutorSubject.deleteMany({ where: { tutorId: tutorProfileId } });
+    await tx.tutorTopic.deleteMany({ where: { tutorId: tutorProfileId } });
+    await tx.availability.deleteMany({ where: { tutorId: tutorProfileId } });
+    await tx.request.updateMany({
+      where: { selectedTutorId: tutorProfileId },
+      data: { selectedTutorId: null },
+    });
+    await tx.tutorProfile.delete({ where: { id: tutorProfileId } });
+  }
+
   async deleteTutorProfile(tutorProfileId: string) {
     const profile = await this.prisma.tutorProfile.findUnique({
       where: { id: tutorProfileId },
+      include: { user: { select: { fullName: true, avatarUrl: true } } },
     });
 
     if (!profile) {
       throw new NotFoundException('Tutor profile not found');
     }
 
-    return this.prisma.tutorProfile.delete({
-      where: { id: tutorProfileId },
-      include: {
-        user: {
-          select: { fullName: true, avatarUrl: true },
-        },
-      },
+    await this.prisma.$transaction(async (tx) => {
+      await this.cleanupTutorProfileTx(tx, tutorProfileId);
     });
+
+    return profile;
   }
 
   async toggleFeaturedWorkshop(workshopId: string, isFeatured: boolean) {
@@ -399,18 +423,20 @@ export class AdminService {
       throw new NotFoundException('Tutor application not found');
     }
 
-    await this.prisma.tutorApplication.delete({
-      where: { id: applicationId },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.tutorApplication.delete({ where: { id: applicationId } });
 
-    // Clean up tutor profile if it has no bookings or workshops
-    const profile = await this.prisma.tutorProfile.findUnique({
-      where: { userId: application.userId },
-      include: { _count: { select: { bookings: true } } },
+      const profile = await tx.tutorProfile.findUnique({
+        where: { userId: application.userId },
+      });
+      if (profile) {
+        await this.cleanupTutorProfileTx(tx, profile.id);
+      }
+
+      await tx.userRole.deleteMany({
+        where: { userId: application.userId, role: RoleName.TUTOR },
+      });
     });
-    if (profile && profile._count.bookings === 0) {
-      await this.prisma.tutorProfile.delete({ where: { id: profile.id } }).catch(() => {});
-    }
 
     return { ok: true, id: applicationId };
   }
@@ -701,6 +727,53 @@ export class AdminService {
       where: { id: userId },
       data: { isActive },
     });
+  }
+
+  async deleteUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { tutorProfile: true },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Clean up TutorProfile and its bookings/matches/reviews if exists
+      if (user.tutorProfile) {
+        await this.cleanupTutorProfileTx(tx, user.tutorProfile.id);
+      }
+
+      // 2. Clean up student's requests & their bookings
+      const userRequests = await tx.request.findMany({
+        where: { studentId: userId },
+        select: { id: true },
+      });
+      const requestIds = userRequests.map((r) => r.id);
+      if (requestIds.length > 0) {
+        const reqBookings = await tx.booking.findMany({
+          where: { requestId: { in: requestIds } },
+          select: { id: true },
+        });
+        await this.cleanupBookingsTx(tx, reqBookings.map((b) => b.id));
+        await tx.request.deleteMany({ where: { id: { in: requestIds } } });
+      }
+
+      // 3. Clean up remaining non-cascade relations
+      await tx.payment.deleteMany({ where: { userId } });
+      await tx.review.deleteMany({ where: { authorId: userId } });
+      await tx.quizAttempt.deleteMany({ where: { userId } });
+      await tx.workshop.updateMany({ where: { tutorId: userId }, data: { tutorId: null } });
+      await tx.message.deleteMany({ where: { senderId: userId } });
+      await tx.conversation.deleteMany({
+        where: { OR: [{ studentId: userId }, { tutorId: userId }] },
+      });
+
+      // 4. Delete the user (cascades roles, studentProfile, notifications, pushSubscriptions, etc.)
+      await tx.user.delete({ where: { id: userId } });
+    });
+
+    return { ok: true, id: userId };
   }
 
   async grantUserRole(userId: string, role: RoleName) {
