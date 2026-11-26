@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { NotificationChannel, NotificationType } from '@prisma/client';
 import { PrismaService } from '../config/prisma.service';
 import * as webPush from 'web-push';
 
@@ -17,12 +18,14 @@ export interface PushPayload {
   icon?: string;
   url?: string;
   tag?: string;
+  type?: NotificationType;
 }
 
 @Injectable()
 export class PushService implements OnModuleInit {
   private readonly logger = new Logger(PushService.name);
   private remindedBookings = new Set<string>();
+  private lastReminderCheckAt = 0;
 
   constructor(private prisma: PrismaService) {}
 
@@ -54,18 +57,82 @@ export class PushService implements OnModuleInit {
     await this.prisma.pushSubscription.deleteMany({ where: { endpoint } });
   }
 
-  /** Send push notification to a specific user (all their devices) */
+  /** Send push & in-app notification to a specific user (all their devices) */
   async sendToUser(userId: string, payload: PushPayload) {
+    // 1. Always persist In-App Notification so the user sees it in the NotificationBell
+    try {
+      await this.prisma.notification.create({
+        data: {
+          userId,
+          type: payload.type ?? NotificationType.GENERIC,
+          channel: NotificationChannel.IN_APP,
+          title: payload.title,
+          body: payload.body,
+          isRead: false,
+          metadata: {
+            url: payload.url || '/',
+            tag: payload.tag || null,
+          },
+        },
+      });
+    } catch (err: any) {
+      this.logger.warn(`Failed to save in-app notification for user ${userId}: ${err?.message}`);
+    }
+
+    // 2. Dispatch Web Push to all subscribed devices
     const subs = await this.prisma.pushSubscription.findMany({ where: { userId } });
     const results = await Promise.allSettled(
       subs.map((sub) => this.sendPush(sub, payload)),
     );
-    // Clean up expired subscriptions
+    // Clean up only permanently expired/gone subscriptions (410 Gone or 404 Not Found)
     for (let i = 0; i < results.length; i++) {
-      if (results[i].status === 'rejected') {
-        await this.prisma.pushSubscription.delete({ where: { id: subs[i].id } }).catch(() => {});
+      const r = results[i];
+      if (r.status === 'rejected') {
+        const statusCode = (r.reason as any)?.statusCode;
+        if (statusCode === 410 || statusCode === 404) {
+          await this.prisma.pushSubscription.delete({ where: { id: subs[i].id } }).catch(() => {});
+        }
       }
     }
+  }
+
+  /** Get recent in-app notifications for a user & trigger throttled session reminders */
+  async getUserNotifications(userId: string) {
+    const now = Date.now();
+    if (now - this.lastReminderCheckAt > 60 * 1000) {
+      this.lastReminderCheckAt = now;
+      // Run non-blocking so response is instant
+      this.checkAndSendSessionReminders().catch(() => {});
+    }
+
+    const [items, unreadCount] = await Promise.all([
+      this.prisma.notification.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      }),
+      this.prisma.notification.count({
+        where: { userId, isRead: false },
+      }),
+    ]);
+
+    return { items, unreadCount };
+  }
+
+  async markAsRead(userId: string, notificationId: string) {
+    await this.prisma.notification.updateMany({
+      where: { id: notificationId, userId },
+      data: { isRead: true },
+    });
+    return { ok: true };
+  }
+
+  async markAllAsRead(userId: string) {
+    await this.prisma.notification.updateMany({
+      where: { userId, isRead: false },
+      data: { isRead: true },
+    });
+    return { ok: true };
   }
 
   /** Send push to all users with a specific role */
@@ -134,6 +201,25 @@ export class PushService implements OnModuleInit {
 
     for (const b of upcomingBookings) {
       if (this.remindedBookings.has(b.id)) continue;
+
+      const tag = `reminder-${b.id}`;
+      // Check DB in case of serverless cold start
+      const alreadySent = await this.prisma.notification.findFirst({
+        where: {
+          type: NotificationType.SESSION_REMINDER,
+          metadata: {
+            path: ['tag'],
+            equals: tag,
+          },
+        },
+        select: { id: true },
+      });
+
+      if (alreadySent) {
+        this.remindedBookings.add(b.id);
+        continue;
+      }
+
       this.remindedBookings.add(b.id);
 
       const minsUntil = Math.max(1, Math.round((new Date(b.startsAt).getTime() - now.getTime()) / 60000));
@@ -154,7 +240,8 @@ export class PushService implements OnModuleInit {
           title,
           body,
           url: `/room/${b.requestId}`,
-          tag: `reminder-${b.id}`,
+          tag,
+          type: NotificationType.SESSION_REMINDER,
         }).catch(() => {});
       }
 
@@ -164,7 +251,8 @@ export class PushService implements OnModuleInit {
           title,
           body,
           url: `/room/${b.requestId}`,
-          tag: `reminder-${b.id}`,
+          tag,
+          type: NotificationType.SESSION_REMINDER,
         }).catch(() => {});
       }
     }

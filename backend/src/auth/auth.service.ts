@@ -1,10 +1,11 @@
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Prisma, TeachingMode, TutorApplicationStatus } from '@prisma/client';
+import { NotificationType, Prisma, TeachingMode, TutorApplicationStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../config/prisma.service';
 import { MailService } from '../common/mail.service';
+import { PushService } from '../notifications/push.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -19,6 +20,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwt: JwtService,
     private mail: MailService,
+    private pushService: PushService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -88,6 +90,18 @@ export class AuthService {
         },
         include: { roles: true },
       });
+
+      if (dto.initialRole === 'TUTOR') {
+        try {
+          await this.pushService.sendToRole('ADMIN', {
+            title: '📋 طلب انضمام مدرس جديد',
+            body: `تقدّم ${user.fullName} للانضمام كمدرس على المنصة — راجع الطلب الآن`,
+            url: '/dashboard/admin',
+            tag: `tutor-app-${user.id}`,
+            type: NotificationType.TUTOR_APPLICATION_STATUS,
+          });
+        } catch {}
+      }
 
       return this.issueTokens(
         user.id,

@@ -6,9 +6,10 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { PrismaService } from '../config/prisma.service';
 import { MailService } from '../common/mail.service';
+import { PushModule } from '../notifications/push.module';
 
 @Module({
-  imports: [PassportModule, JwtModule.register({})],
+  imports: [PassportModule, JwtModule.register({}), PushModule],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, PrismaService, MailService],
 })

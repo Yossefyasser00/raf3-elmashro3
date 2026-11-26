@@ -397,9 +397,13 @@ export class RequestsService {
     }
 
     try {
+      const isDirectAcceptance =
+        Number(dto.proposedAmountEGP) === Number(request.budgetEGP ?? 0);
       await this.notifyRequestStudents(request.id, {
-        title: '💰 عرض سعر جديد',
-        body: `مدرس قدّم عرض سعر جديد (${dto.proposedAmountEGP} ج.م) — راجعه الآن`,
+        title: isDirectAcceptance ? '✅ مدرس قبل طلبك!' : '💰 عرض سعر جديد',
+        body: isDirectAcceptance
+          ? `وافق مدرس على طلبك بالسعر المعروض (${dto.proposedAmountEGP} ج.م) — ادخل الآن للتأكيد`
+          : `مدرس قدّم عرض سعر جديد (${dto.proposedAmountEGP} ج.م) — راجعه الآن`,
         url: '/dashboard/student',
         tag: `negotiation-${requestId}`,
       });

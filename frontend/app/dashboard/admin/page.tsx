@@ -1109,6 +1109,29 @@ export default function AdminDashboardPage() {
     }
   }
 
+  async function handleDeleteTeacherApplication(appId: string) {
+    if (!confirm("هل أنت متأكد من حذف هذا المدرس وطلب انضمامه نهائياً؟")) return;
+    const token = localStorage.getItem("fz_token");
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/api/v1/admin/tutor-applications/${appId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message ?? "تعذر حذف المدرس");
+      }
+      setApps((prev) => prev.filter((a) => a.id !== appId));
+      setSelectedApp(null);
+      triggerToast("🗑️ تم حذف المدرس المرفوض نهائياً.");
+    } catch (err: any) {
+      triggerToast(`⚠️ ${err.message || "حدث خطأ أثناء الحذف"}`);
+    }
+  }
+
   async function handleRequestChanges(appId: string) {
     const token = localStorage.getItem("fz_token");
     try {
@@ -1599,7 +1622,7 @@ export default function AdminDashboardPage() {
                     <tr className="border-b border-sand text-right text-xs font-black text-ink/50">
                       <th className="py-3 pr-2">المعرف</th>
                       <th className="py-3 pr-2">المدرس والمعلومات</th>
-                      <th className="py-3 pr-2">الجامعة والكلية</th>
+                      <th className="py-3 pr-2">الكلية</th>
                       <th className="py-3 pr-2">الخبرة ونمط التدريس</th>
                       <th className="py-3 pr-2">الحالة</th>
                       <th className="py-3 pl-2 text-center">الإجراءات والقرار</th>
@@ -1614,13 +1637,12 @@ export default function AdminDashboardPage() {
                           <div className="text-[11px] text-ink/50">{app.email} · {app.phone}</div>
                         </td>
                         <td className="py-3.5 pr-2 text-ink/80 text-xs">
-                          <div className="font-bold">{app.university}</div>
-                          <div className="text-ink/60">{app.faculty}</div>
+                          <div className="font-bold">{app.faculty}</div>
                         </td>
                         <td className="py-3.5 pr-2 max-w-xs text-xs text-ink/70">
                           <div className="truncate font-semibold">{app.experience}</div>
                           <span className="inline-block mt-1 rounded bg-ink/5 px-2 py-0.5 text-[10px] font-bold text-ink/60">
-                            {app.preferredMode === "ONLINE" ? "💻 أونلاين فقط" : app.preferredMode === "IN_PERSON" ? "🏫 حضوري فقط" : "🔄 أونلاين وحضوري"}
+                            💻 أونلاين
                           </span>
                         </td>
                         <td className="py-3.5 pr-2">
@@ -1672,6 +1694,18 @@ export default function AdminDashboardPage() {
                               >
                                 <XCircle className="h-3.5 w-3.5" />
                                 رفض
+                              </button>
+                            )}
+
+                            {/* Delete Button (after rejection) */}
+                            {app.status === "REJECTED" && (
+                              <button
+                                onClick={() => handleDeleteTeacherApplication(app.id)}
+                                className="flex items-center gap-1 rounded-xl bg-red-600 px-2.5 py-1.5 text-xs font-black text-white hover:bg-red-700 transition shadow-sm"
+                                title="حذف المدرس نهائياً"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                حذف
                               </button>
                             )}
                           </div>
@@ -3242,14 +3276,13 @@ export default function AdminDashboardPage() {
 
             <div className="grid gap-4 sm:grid-cols-2 text-xs">
               <div className="rounded-2xl bg-cream/50 p-3.5 space-y-1">
-                <span className="font-bold text-ink/50">الجامعة والكلية:</span>
-                <p className="text-sm font-black text-ink">{selectedApp.university}</p>
-                <p className="text-ink/70 font-semibold">{selectedApp.faculty}</p>
+                <span className="font-bold text-ink/50">الكلية:</span>
+                <p className="text-sm font-black text-ink">{selectedApp.faculty}</p>
               </div>
               <div className="rounded-2xl bg-cream/50 p-3.5 space-y-1">
-                <span className="font-bold text-ink/50">طريقة التدريس المفضلة:</span>
+                <span className="font-bold text-ink/50">طريقة التدريس:</span>
                 <p className="text-sm font-black text-lilac">
-                  {selectedApp.preferredMode === "ONLINE" ? "💻 أونلاين فقط" : selectedApp.preferredMode === "IN_PERSON" ? "🏫 حضوري فقط" : "🔄 أونلاين وحضوري"}
+                  💻 أونلاين
                 </p>
                 <p className="text-ink/50">تاريخ التقديم: {selectedApp.submittedAt}</p>
               </div>

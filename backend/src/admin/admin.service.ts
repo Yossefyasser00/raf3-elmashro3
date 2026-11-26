@@ -391,6 +391,30 @@ export class AdminService {
     return result;
   }
 
+  async deleteTutorApplication(applicationId: string) {
+    const application = await this.prisma.tutorApplication.findUnique({
+      where: { id: applicationId },
+    });
+    if (!application) {
+      throw new NotFoundException('Tutor application not found');
+    }
+
+    await this.prisma.tutorApplication.delete({
+      where: { id: applicationId },
+    });
+
+    // Clean up tutor profile if it has no bookings or workshops
+    const profile = await this.prisma.tutorProfile.findUnique({
+      where: { userId: application.userId },
+      include: { _count: { select: { bookings: true } } },
+    });
+    if (profile && profile._count.bookings === 0) {
+      await this.prisma.tutorProfile.delete({ where: { id: profile.id } }).catch(() => {});
+    }
+
+    return { ok: true, id: applicationId };
+  }
+
   // ------------------------------------------------------------
   // 3. ALL STUDENT REQUESTS OVERSIGHT
   // ------------------------------------------------------------
@@ -563,13 +587,31 @@ export class AdminService {
 
     const shouldFeatureOnHome = status === WorkshopStatus.APPROVED || status === WorkshopStatus.PUBLISHED;
 
-    return this.prisma.workshop.update({
+    const updated = await this.prisma.workshop.update({
       where: { id },
       data: {
         status,
         isFeaturedOnHome: shouldFeatureOnHome ? true : false,
       },
     });
+
+    const isApproved = status === WorkshopStatus.APPROVED || status === WorkshopStatus.PUBLISHED;
+    const isRejected = status === WorkshopStatus.REJECTED;
+
+    if (workshop.tutorId && (isApproved || isRejected)) {
+      try {
+        await this.pushService.sendToUser(workshop.tutorId, {
+          title: isApproved ? '🎉 تمت الموافقة على ورشتك!' : '❌ تم رفض الورشة',
+          body: isApproved
+            ? `تمت الموافقة على ورشة "${workshop.title}" ونشرها للطلاب`
+            : `تم رفض طلب ورشة "${workshop.title}" من قبل الإدارة`,
+          url: '/dashboard/tutor',
+          tag: `workshop-${id}`,
+        });
+      } catch {}
+    }
+
+    return updated;
   }
 
   async grantFreeAccess(workshopId: string, studentId: string, adminId: string) {

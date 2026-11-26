@@ -27,12 +27,49 @@ export function usePushNotifications() {
     setIsSupported(supported);
     if (supported) {
       setPermission(Notification.permission);
-      // Check if already subscribed
-      navigator.serviceWorker.ready.then((reg) => {
-        reg.pushManager.getSubscription().then((sub) => {
+      // Register SW proactively and sync subscription if already granted
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then(() => navigator.serviceWorker.ready)
+        .then(async (reg) => {
+          let sub = await reg.pushManager.getSubscription();
+          if (!sub && Notification.permission === "granted") {
+            try {
+              const vapidRes = await fetch(`${API_BASE}/api/v1/push/vapid-key`);
+              const { publicKey } = await vapidRes.json();
+              if (publicKey) {
+                sub = await reg.pushManager.subscribe({
+                  userVisibleOnly: true,
+                  applicationServerKey: urlBase64ToUint8Array(publicKey) as any,
+                });
+              }
+            } catch {
+              // ignore silent re-subscribe failure
+            }
+          }
           setIsSubscribed(!!sub);
-        });
-      });
+
+          // Sync existing subscription to current logged-in user
+          const token = localStorage.getItem("fz_token");
+          if (sub && token) {
+            const subJson = sub.toJSON();
+            fetch(`${API_BASE}/api/v1/push/subscribe`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                endpoint: subJson.endpoint,
+                keys: {
+                  p256dh: subJson.keys?.p256dh,
+                  auth: subJson.keys?.auth,
+                },
+              }),
+            }).catch(() => {});
+          }
+        })
+        .catch(() => {});
     }
   }, []);
 

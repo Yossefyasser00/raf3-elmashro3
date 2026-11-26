@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Req } from '@nestjs/common';
 import { Public } from '../common/decorators/public.decorator';
 import { PushService } from './push.service';
 
@@ -19,6 +19,24 @@ export class PushController {
   async triggerReminders() {
     await this.pushService.checkAndSendSessionReminders();
     return { ok: true };
+  }
+
+  /** GET /api/v1/push/my — get user's in-app notifications */
+  @Get('my')
+  getMyNotifications(@Req() req: any) {
+    return this.pushService.getUserNotifications(req.user.id);
+  }
+
+  /** POST /api/v1/push/read-all — mark all notifications read */
+  @Post('read-all')
+  markAllAsRead(@Req() req: any) {
+    return this.pushService.markAllAsRead(req.user.id);
+  }
+
+  /** POST /api/v1/push/:id/read — mark one notification read */
+  @Post(':id/read')
+  markAsRead(@Req() req: any, @Param('id') id: string) {
+    return this.pushService.markAsRead(req.user.id, id);
   }
 
   /** POST /api/v1/push/subscribe — authenticated */

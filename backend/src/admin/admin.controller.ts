@@ -55,6 +55,11 @@ export class AdminController {
     return this.adminService.reviewTutorApplication(id, req.user.id, dto);
   }
 
+  @Delete('tutor-applications/:id')
+  deleteTutorApplication(@Param('id') id: string) {
+    return this.adminService.deleteTutorApplication(id);
+  }
+
   // ------------------------------------------------------------
   // Featured Items (Home Page)
   // ------------------------------------------------------------
